@@ -1,0 +1,2 @@
+alias opencode-dc='cp $HOME/Development/OpenCode/docker-compose.opencode.yaml ./docker-compose.opencode.yaml && export USER_ID="$(id -u)" && export GROUP_ID="$(id -g)" && docker compose -f docker-compose.opencode.yaml up -d && docker compose -f docker-compose.opencode.yaml exec opencode_va opencode'
+alias opencode-dc-down='export USER_ID="$(id -u)" && export GROUP_ID="$(id -g)" && docker compose -f docker-compose.opencode.yaml down && docker model stop-runner'

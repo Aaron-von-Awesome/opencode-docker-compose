@@ -1,0 +1,59 @@
+---
+name: opencode-dmr-va # Project Name must be lowercase
+
+networks:
+  local-llm-net:
+    external: false
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 192.168.177.0/24
+
+services:
+  opencode_va:
+    image: "ghcr.io/anomalyco/opencode:latest"
+    container_name: "opencode-va-local"
+    user: "${USER_ID}:${GROUP_ID}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: "America/New_York"
+      HOME: "/home/awesome/opencode"
+      OPENCODE_CONFIG: "/home/awesome/.occonfig/opencode.jsonc"
+      OPENCODE_EXPERIMENTAL_LSP_TOOL: true
+    volumes:
+      - source: "."
+        target: "/workspace"
+        type: bind
+      - source: "./.occonfig"
+        target: "/home/awesome/opencode"
+        type: bind
+      - source: "~/Development/OpenCode/opencode.jsonc"
+        target: "/home/awesome/.occonfig/opencode.jsonc"
+        type: bind
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    networks:
+      local-llm-net:
+        ipv4_address: "192.168.177.10"
+    models:
+      llm_qwen:
+        endpoint_var: MODEL_URL
+      llm_gptoss:
+        endpoint_var: MODEL_URL
+
+models:
+  llm_qwen:
+    model: ai/qwen3-coder-next
+    runtime_flags:
+      - "--temp" # Temperature
+      - "1.0"
+      - "--top-p" # Top-k sampling
+      - "0.95"
+      - "--top-k" # Top-k sampling
+      - "40"
+  llm_gptoss:
+    model: ai/gpt-oss:20B-F16
+    context_size: 131072
