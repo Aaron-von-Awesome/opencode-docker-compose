@@ -1,17 +1,52 @@
 #!/usr/bin/env python3
 """
 init_repo.py
-
+ 
 Initializes the OpenCode repository by copying configuration files
-to the User’s OpenCode directory and updating the User’s
-~/.bashrc with the repository’s bash aliases.
-
+to the User’s OpenCode directory and updating the User’s shell rc file
+with the repository’s aliases.
+ 
 Author: VibeCoder von Awesome
 """
 
 import os
 import shutil
 import re
+
+
+def detect_shells():
+    """Return a list of (shell_name, rc_path) for existing shell rc files."""
+    home = os.path.expanduser("~")
+    shells = []
+    bash = os.path.join(home, ".bashrc")
+    if os.path.exists(bash):
+        shells.append(("bash", bash))
+    zsh = os.path.join(home, ".zshrc")
+    if os.path.exists(zsh):
+        shells.append(("zsh", zsh))
+    fish = os.path.join(home, ".config", "fish", "config.fish")
+    if os.path.exists(fish):
+        shells.append(("fish", fish))
+    return shells
+
+
+def prompt_shell_choice(shells):
+    """Prompt the user to select one of the available shells."""
+    if not shells:
+        return None
+    if len(shells) == 1:
+        return shells[0][1]
+    print("Detected the following shell configuration files:")
+    for idx, (name, path) in enumerate(shells, 1):
+        print(f"  {idx}. {name} ({path})")
+    while True:
+        choice = input(f"Choose shell to install aliases into [1-{len(shells)}]: ").strip()
+        if choice.isdigit():
+            idx = int(choice)
+            if 1 <= idx <= len(shells):
+                return shells[idx - 1][1]
+        print(f"Please enter a number between 1 and {len(shells)}.")
+
 import sys
 
 
@@ -35,14 +70,14 @@ def copy_file(src: str, dest_dir: str, dest_name: str | None = None):
     print(f"Copied {src} → {dest_path}")
 
 
-def update_bashrc(alias_file: str, bashrc_path: str):
+def update_shellrc(alias_file: str, rc_path: str):
     """
-    Append aliases from alias_file to bashrc_path, replacing
+    Append aliases from alias_file to rc_path, replacing
     any alias with the same name.
     """
-    # Read existing bashrc (create if missing)
-    if os.path.exists(bashrc_path):
-        with open(bashrc_path, "r", encoding="utf-8") as f:
+    # Read existing rc file (create if missing)
+    if os.path.exists(rc_path):
+        with open(rc_path, "r", encoding="utf-8") as f:
             bashrc_lines = f.readlines()
     else:
         bashrc_lines = []
@@ -70,10 +105,10 @@ def update_bashrc(alias_file: str, bashrc_path: str):
     new_bashrc.extend(alias_defs.values())
 
     # Write back
-    with open(bashrc_path, "w", encoding="utf-8") as f:
+    with open(rc_path, "w", encoding="utf-8") as f:
         f.write("\n".join(new_bashrc) + "\n")
 
-    print(f"Updated aliases in {bashrc_path}")
+    print(f"Updated aliases in {rc_path}")
 
 
 def main():
@@ -101,9 +136,18 @@ def main():
     copy_file(docker_compose, target_oc_dir)
     copy_file(opencode_jsonc, target_oc_dir)
 
-    # Update ~/.bashrc
-    bashrc_path = os.path.expanduser("~/.bashrc")
-    update_bashrc(bash_aliases, bashrc_path)
+    # Update shell rc file
+    # Detect available shells and prompt user
+    shells = detect_shells()
+    chosen_rc_path = prompt_shell_choice(shells)
+
+    # If no shell detected, fall back to default ~/.bashrc
+    if not chosen_rc_path:
+        chosen_rc_path = os.path.expanduser("~/.bashrc")
+        print("No shell rc file detected. Creating ~/.bashrc.")
+        open(chosen_rc_path, "a").close()
+
+    update_shellrc(bash_aliases, chosen_rc_path)
 
     print("Repository initialized successfully.")
 
