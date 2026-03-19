@@ -21,14 +21,15 @@ services:
       HOME: "/home/awesome/opencode"
       OPENCODE_CONFIG: "/home/awesome/.occonfig/opencode.jsonc"
       OPENCODE_EXPERIMENTAL_LSP_TOOL: true
+      OC_PROJECT_NAME: ${OC_PROJECT_NAME}
     volumes:
       - source: "."
         target: "/workspace"
         type: bind
-      - source: "./.occonfig"
+      - source: "${HOME}/OpenCode/opencode-container/${OC_PROJECT_NAME}"
         target: "/home/awesome/opencode"
         type: bind
-      - source: "~/Development/OpenCode/opencode.jsonc"
+      - source: "${HOME}/OpenCode/opencode.jsonc"
         target: "/home/awesome/.occonfig/opencode.jsonc"
         type: bind
     working_dir: /workspace
@@ -39,21 +40,10 @@ services:
       local-llm-net:
         ipv4_address: "192.168.177.10"
     models:
-      llm_qwen:
-        endpoint_var: MODEL_URL
       llm_gptoss:
         endpoint_var: MODEL_URL
 
 models:
-  llm_qwen:
-    model: ai/qwen3-coder-next
-    runtime_flags:
-      - "--temp" # Temperature
-      - "1.0"
-      - "--top-p" # Top-k sampling
-      - "0.95"
-      - "--top-k" # Top-k sampling
-      - "40"
   llm_gptoss:
     model: ai/gpt-oss:20B-F16
     context_size: 131072

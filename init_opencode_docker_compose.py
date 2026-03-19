@@ -2,8 +2,8 @@
 """
 init_repo.py
 
-Initialises the OpenCode repository by copying configuration files
-to the User’s Development directory and updating the User’s
+Initializes the OpenCode repository by copying configuration files
+to the User’s OpenCode directory and updating the User’s
 ~/.bashrc with the repository’s bash aliases.
 
 Author: VibeCoder von Awesome
@@ -83,20 +83,23 @@ def main():
     opencode_jsonc = os.path.join(repo_root, "opencode.jsonc")
     bash_aliases = os.path.join(repo_root, "bash-aliases.txt")
 
-    target_dir = os.path.expanduser("~/Development/OpenCode")
+    target_oc_dir = os.path.expanduser("~/OpenCode")
+    target_container_dir = os.path.expanduser("~/OpenCode/opencode-container")
 
     # Check/create target directory
-    if not os.path.isdir(target_dir):
-        print(f"Target directory does not exist: {target_dir}")
+    if not os.path.isdir(target_oc_dir):
+        print(f"Target directory does not exist: {target_oc_dir}")
         if not confirm("Create it?"):
             print("Aborting.")
             sys.exit(0)
-        os.makedirs(target_dir, exist_ok=True)
-        print(f"Created {target_dir}")
+        os.makedirs(target_oc_dir, exist_ok=True)
+        os.makedirs(target_container_dir, exist_ok=True)
+        print(f"Created {target_oc_dir}")
+        print(f"Created {target_container_dir}")
 
     # Copy configuration files
-    copy_file(docker_compose, target_dir)
-    copy_file(opencode_jsonc, target_dir)
+    copy_file(docker_compose, target_oc_dir)
+    copy_file(opencode_jsonc, target_oc_dir)
 
     # Update ~/.bashrc
     bashrc_path = os.path.expanduser("~/.bashrc")
