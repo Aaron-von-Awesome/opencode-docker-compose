@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 init_repo.py
- 
+
 Initializes the OpenCode repository by copying configuration files
 to the User’s OpenCode directory and updating the User’s shell rc file
 with the repository’s aliases.
- 
+
 Author: VibeCoder von Awesome
 """
 
@@ -40,12 +40,15 @@ def prompt_shell_choice(shells):
     for idx, (name, path) in enumerate(shells, 1):
         print(f"  {idx}. {name} ({path})")
     while True:
-        choice = input(f"Choose shell to install aliases into [1-{len(shells)}]: ").strip()
+        choice = input(
+            f"Choose shell to install aliases into [1-{len(shells)}]: "
+        ).strip()
         if choice.isdigit():
             idx = int(choice)
             if 1 <= idx <= len(shells):
                 return shells[idx - 1][1]
         print(f"Please enter a number between 1 and {len(shells)}.")
+
 
 import sys
 
@@ -116,10 +119,12 @@ def main():
     repo_root = os.path.abspath(os.path.dirname(__file__))
     docker_compose = os.path.join(repo_root, "docker-compose.opencode.yaml")
     opencode_jsonc = os.path.join(repo_root, "opencode.jsonc")
+    tui_jsonc = os.path.join(repo_root, "tui.jsonc")
     bash_aliases = os.path.join(repo_root, "bash-aliases.txt")
 
     target_oc_dir = os.path.expanduser("~/OpenCode")
     target_container_dir = os.path.expanduser("~/OpenCode/opencode-container")
+    target_config_dir = os.path.expanduser("~/OpenCode/config-global")
 
     # Check/create target directory
     if not os.path.isdir(target_oc_dir):
@@ -131,10 +136,12 @@ def main():
         os.makedirs(target_container_dir, exist_ok=True)
         print(f"Created {target_oc_dir}")
         print(f"Created {target_container_dir}")
+        print(f"Created {target_config_dir}")
 
     # Copy configuration files
     copy_file(docker_compose, target_oc_dir)
     copy_file(opencode_jsonc, target_oc_dir)
+    copy_file(tui_jsonc, target_oc_dir)
 
     # Update shell rc file
     # Detect available shells and prompt user

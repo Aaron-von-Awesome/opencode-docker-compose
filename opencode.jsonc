@@ -4,8 +4,6 @@
   "enabled_providers": ["dmr"],
   // Default Agent
   "default_agent": "plan",
-  // Theme configuration
-  "theme": "opencode",
   // Automatically Compact to avoid exceeding the context limit
   "compaction": { "auto": true, "prune": true },
   // Docker Model Runner Settings

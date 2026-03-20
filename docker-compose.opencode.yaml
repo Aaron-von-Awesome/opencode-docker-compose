@@ -19,18 +19,26 @@ services:
     environment:
       TZ: "America/New_York"
       HOME: "/home/awesome/opencode"
-      OPENCODE_CONFIG: "/home/awesome/.occonfig/opencode.jsonc"
+      OPENCODE_CONFIG: "/home/awesome/oc-config/opencode.jsonc"
+      OPENCODE_TUI_CONFIG: "/home/awesome/oc-config/tui.jsonc"
+      OPENCODE_CONFIG_DIR: "/home/awesome/oc-config/global"
       OPENCODE_EXPERIMENTAL_LSP_TOOL: true
       OC_PROJECT_NAME: ${OC_PROJECT_NAME}
     volumes:
       - source: "."
         target: "/workspace"
         type: bind
-      - source: "${HOME}/OpenCode/opencode-container/${OC_PROJECT_NAME}"
-        target: "/home/awesome/opencode"
+      - source: "${HOME}/OpenCode/opencode-container/${OC_PROJECT_NAME}/"
+        target: "/home/awesome/opencode/"
         type: bind
       - source: "${HOME}/OpenCode/opencode.jsonc"
-        target: "/home/awesome/.occonfig/opencode.jsonc"
+        target: "/home/awesome/oc-config/opencode.jsonc"
+        type: bind
+      - source: "${HOME}/OpenCode/tui.jsonc"
+        target: "/home/awesome/oc-config/tui.jsonc"
+        type: bind
+      - source: "${HOME}/OpenCode/config-global/"
+        target: "/home/awesome/oc-config/global/"
         type: bind
     working_dir: /workspace
     stdin_open: true
