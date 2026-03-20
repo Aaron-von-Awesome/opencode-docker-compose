@@ -44,6 +44,11 @@ services:
     stdin_open: true
     tty: true
     restart: unless-stopped
+    # To serve up a Web UI
+    # Uncomment "ports" section and run this command:
+    #   oc web --hostname 0.0.0.0 --port 4096
+    # ports:
+    #  - "127.0.0.1:4096:4069"
     networks:
       local-llm-net:
         ipv4_address: "192.168.177.10"
