@@ -13,7 +13,7 @@ services:
   opencode_va:
     image: "ghcr.io/anomalyco/opencode:latest"
     container_name: "opencode-va-local"
-    user: "${USER_ID}:${GROUP_ID}"
+    # user: "${USER_ID}:${GROUP_ID}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -60,3 +60,7 @@ models:
   llm_gptoss:
     model: ai/gpt-oss:20B-F16
     context_size: 131072
+
+volumes:
+  -data:
+    name: ${DATABASE_VOLUME}
