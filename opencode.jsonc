@@ -1,27 +1,49 @@
 {
   "$schema": "https://opencode.ai/config.json",
   // Only enable (local) Docker Model Runner Provider
-  "enabled_providers": ["dmr"],
+  "enabled_providers": ["gpt20B"],
+  //"enabled_providers": ["gpt20B", "gpt120B", "gemma4_31B"],
   // Default Agent
   "default_agent": "plan",
   // Automatically Compact to avoid exceeding the context limit
   "compaction": { "auto": true, "prune": true },
   // Docker Model Runner Settings
   "provider": {
-    "dmr": {
+    "gpt20B": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Docker Model Runner",
+      "name": "GPT OSS 20B",
       "options": {
-        "baseURL": "{env:MODEL_URL}",
+        "baseURL": "{env:GPT20_MODEL_URL}",
       },
       "models": {
-        //"qwen3-coder-next": {
-        //  "name": "qwen3-coder-next",
-        //},
-        "gpt-oss:20B-F16": {
-          "name": "gpt-oss:20B-F16",
+        "{env:GPT20_MODEL_NAME}": {
+          "name": "{env:GPT20_MODEL_NAME}",
         },
       },
     },
+    // "gpt120B": {
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "name": "GPT OSS 120B",
+    //   "options": {
+    //     "baseURL": "{env:GPT120_MODEL_URL}",
+    //   },
+    //   "models": {
+    //     "{env:GPT120_MODEL_NAME}": {
+    //       "name": "{env:GPT120_MODEL_NAME}",
+    //     },
+    //   },
+    // },
+    // "gemma4_31B": {
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "name": "Gemma 3 31B IT",
+    //   "options": {
+    //     "baseURL": "{env:GEMMA4_31_MODEL_URL}",
+    //   },
+    //   "models": {
+    //     "{env:GEMMA4_31_MODEL_NAME}": {
+    //       "name": "{env:GEMMA4_31_MODEL_NAME}",
+    //     },
+    //   },
+    // },
   },
 }

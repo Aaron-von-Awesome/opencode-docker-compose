@@ -13,7 +13,7 @@ services:
   opencode_va:
     image: "ghcr.io/anomalyco/opencode:latest"
     container_name: "opencode-va-local"
-    # user: "${USER_ID}:${GROUP_ID}"
+    user: "${USER_ID}:${GROUP_ID}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -53,14 +53,20 @@ services:
       local-llm-net:
         ipv4_address: "192.168.177.10"
     models:
-      llm_gptoss:
-        endpoint_var: MODEL_URL
+      llm_gpt20oss:
+        endpoint_var: GPT20_MODEL_URL
+        model_var: GPT20_MODEL_NAME
+      llm_gpt120oss:
+        endpoint_var: GPT120_MODEL_URL
+        model_var: GPT120_MODEL_NAME
+      llm_gemma4_31b:
+        endpoint_var: GEMMA4_31_MODEL_URL
+        model_var: GEMMA4_31_MODEL_NAME
 
 models:
-  llm_gptoss:
+  llm_gpt20oss:
     model: ai/gpt-oss:20B-F16
-    context_size: 131072
-
-volumes:
-  -data:
-    name: ${DATABASE_VOLUME}
+  # llm_gpt120oss:
+  #   model: huggingface.co/unsloth/gpt-oss-120b-gguf:F16
+  # llm_gemma4_31b:
+  #   model: huggingface.co/google/gemma-4-31b-it
