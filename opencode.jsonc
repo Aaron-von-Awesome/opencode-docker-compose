@@ -1,8 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
   // Only enable (local) Docker Model Runner Provider
-  "enabled_providers": ["gpt20B"],
-  //"enabled_providers": ["gpt20B", "gpt120B", "gemma4_31B"],
+  "enabled_providers": ["gpt20B", "gpt120B"],
   // Default Agent
   "default_agent": "plan",
   // Automatically Compact to avoid exceeding the context limit
@@ -21,29 +20,17 @@
         },
       },
     },
-    // "gpt120B": {
-    //   "npm": "@ai-sdk/openai-compatible",
-    //   "name": "GPT OSS 120B",
-    //   "options": {
-    //     "baseURL": "{env:GPT120_MODEL_URL}",
-    //   },
-    //   "models": {
-    //     "{env:GPT120_MODEL_NAME}": {
-    //       "name": "{env:GPT120_MODEL_NAME}",
-    //     },
-    //   },
-    // },
-    // "gemma4_31B": {
-    //   "npm": "@ai-sdk/openai-compatible",
-    //   "name": "Gemma 3 31B IT",
-    //   "options": {
-    //     "baseURL": "{env:GEMMA4_31_MODEL_URL}",
-    //   },
-    //   "models": {
-    //     "{env:GEMMA4_31_MODEL_NAME}": {
-    //       "name": "{env:GEMMA4_31_MODEL_NAME}",
-    //     },
-    //   },
-    // },
+    "gpt120B": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "GPT OSS 120B",
+      "options": {
+        "baseURL": "{env:GPT120_MODEL_URL}",
+      },
+      "models": {
+        "{env:GPT120_MODEL_NAME}": {
+          "name": "{env:GPT120_MODEL_NAME}",
+        },
+      },
+    },
   },
 }

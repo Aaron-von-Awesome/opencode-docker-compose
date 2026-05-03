@@ -1,40 +1,42 @@
 # OpenCode + Docker Compose + Docker Model Runner
 
-## What this script does
-
-This Python script starts a local development environment for the OpenCode project that is fully contained in a Docker Container.
+A local development environment for OpenCode, fully contained in a Docker container. Provides a linuxserver.io-style `abc` user with runtime UID/GID remapping, host-side persistent config and state, and a single-command launch.
 
 ## Prerequisites
 
-- Docker and Docker Model Runner
-
-## How to run the script
-
-1. **Open a terminal** in the project root directory.
-2. Run: `python3 init_opencode_docker_compose.py`
-3. Follow the prompts (if applicable)
-4. Once completed you should have two aliases available(`opencode-dc` and `opencode-dc-down`)
-5. **Start OpenCode** by running:
-   ```bash
-   oc
-   ```
-   This command pulls the required Docker images, builds containers, and starts the services and models.
-6. **Interact with the application**. You can now use the local instance of OpenCode.
-7. **When finished**, exit the OpenCode session
-8. **Shut down the environment** with:
-   ```bash
-   ocd
-   ```
-   This will stop and remove the containers and stop Docker Model Runner, freeing system resources.
+- Docker with the Compose plugin (`docker compose ...`)
 
 ## Quick start
 
 ```bash
-# 1️⃣ Install file
-python3 init_opencode_docker_compose.py
-# 2️⃣ Start
-oc
-# 3️⃣ Use the application
-# 4️⃣ Stop
-ocd
+./opencode-run.sh [/path/to/your/project]
 ```
+
+If no path is given, the current directory is used. The script:
+
+1. Computes a `DIRECTORY_ID` to namespace the local image tag (`local/${DIRECTORY_ID}/opencode:latest-stable`).
+2. Bootstraps host-side directories under `${HOME}/OpenCode/...` (see below).
+3. On first run, prompts for git identity and generates an SSH key (`id_opencode`).
+4. Builds the image if needed, then `docker compose run --rm opencode`.
+
+## Host-side layout (`${HOME}/OpenCode/...`)
+
+| Path                               | Maps to in container  | Purpose                                             |
+| ---------------------------------- | --------------------- | --------------------------------------------------- |
+| `dot-opencode/`                    | `OPENCODE_CONFIG_DIR` | Skills, agents, commands, themes, plugins           |
+| `dot-opencode-json/opencode.jsonc` | `OPENCODE_CONFIG`     | Global OpenCode config                              |
+| `dot-opencode-json/tui.jsonc`      | `OPENCODE_TUI_CONFIG` | TUI config                                          |
+| `dot-local/`                       | `~/.local/`           | DB, auth, sessions, prompt history, model selection |
+| `dot-cache/`                       | `~/.cache/`           | Download/build cache, agent binaries                |
+| `dot-npm/`                         | `~/.npm/`             | Plugin/skill dependency cache                       |
+| `dot-ssh/`                         | `~/.ssh/`             | SSH keys (generated on first run)                   |
+| `dot-gitconfig/.gitconfig`         | `~/.gitconfig`        | Git identity (prompted on first run)                |
+
+Edit config files on the host; changes take effect on the next container start. Auth, sessions, and DB persist across image rebuilds.
+
+## Files
+
+- `Dockerfile` — Ubuntu 24.04 base; installs OpenCode via the official installer, then copies the binary to `/usr/local/bin/` so it survives bind mounts.
+- `entrypoint.sh` — Remaps `abc` UID/GID to host `PUID`/`PGID`, then drops privileges via `gosu`.
+- `opencode-run.sh` — Host-side launcher (UID/GID export, host-dir bootstrap, git/SSH bootstrap, compose invocation).
+- `docker-compose.yaml` — Service definition, volume mounts, env-var-driven config paths.
