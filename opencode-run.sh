@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Usage: ./opencode-run.sh [--model SHORTNAME] [/path/to/your/project]
 # If no path given, uses current directory.
-# If no model given, defaults to "gpt20" (smallest, safest for memory).
-# Run with --help for the list of available model shortnames.
+# If --model is given, the matching `models/<shortname>.yaml` overlay is
+# merged in and OpenCode runs against Docker Model Runner.
+# If --model is omitted, OpenCode runs WITHOUT a local model bound — use
+# this when you've configured a cloud/third-party provider in
+# opencode.jsonc (see https://opencode.ai/docs/models/).
+# Run with --help for the list of available local-model shortnames.
 
 set -euo pipefail
 
@@ -10,9 +14,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIRECTORY_ID="$(echo -n "${SCRIPT_DIR}+${HOSTNAME}" | sha512sum | cut -c1-12)"
 
 # ------------------------------------------------------------------
-# Argument parsing: --model SHORTNAME and optional workspace path
+# Argument parsing
 # ------------------------------------------------------------------
-MODEL_PROFILE="gpt20"
+MODEL_PROFILE=""        # empty => cloud/third-party mode (no overlay)
 WORKSPACE_ARG=""
 
 # Enumerate available model overlays. Each line is "${prefix}${shortname}".
@@ -31,8 +35,12 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--model SHORTNAME] [PATH]
 
-  --model, -m SHORTNAME   Model overlay to load (default: ${MODEL_PROFILE}).
-                          Available overlays:
+  --model, -m SHORTNAME   Local model overlay to load via Docker Model
+                          Runner. If omitted, OpenCode runs without a
+                          local model and you should configure a cloud /
+                          third-party provider in opencode.jsonc
+                          (https://opencode.ai/docs/models/).
+                          Available local overlays:
 $(list_model_overlays "                            ")
   --help, -h              Show this help and exit.
   PATH                    Project directory (default: current directory).
@@ -67,12 +75,124 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-MODEL_OVERLAY="${SCRIPT_DIR}/models/${MODEL_PROFILE}.yaml"
-if [[ ! -f "$MODEL_OVERLAY" ]]; then
-  echo "Error: no overlay file for model '${MODEL_PROFILE}' at ${MODEL_OVERLAY}" >&2
-  echo "Available overlays:" >&2
-  list_model_overlays "  " >&2
-  exit 1
+# ------------------------------------------------------------------
+# Local-model preflight (only when --model was given)
+# ------------------------------------------------------------------
+# Returns the full Docker Model Runner identifier from a given overlay yaml
+# (the value of the `model:` key under the top-level `models:` block).
+read_overlay_model_id() {
+  awk '/^[[:space:]]+model:[[:space:]]+/ {
+    sub(/^[[:space:]]+model:[[:space:]]+/, "")
+    print
+    exit
+  }' "$1"
+}
+
+# Normalize a model identifier to the canonical form reported by
+# `docker model ps` under the MODEL column:
+#   - strip a leading "ai/" prefix (the default Docker Model Runner
+#     registry, which is omitted in CLI output)
+#   - lowercase the rest
+# Examples:
+#   "ai/gpt-oss:20B-F16"                            -> "gpt-oss:20b-f16"
+#   "ai/gemma4:31B"                                 -> "gemma4:31b"
+#   "ai/mistral-small4"                             -> "mistral-small4"
+#   "huggingface.co/unsloth/gpt-oss-120b-gguf:F16"  -> "huggingface.co/unsloth/gpt-oss-120b-gguf:f16"
+# Non-default registries (containing a "." in the first path segment,
+# e.g. huggingface.co/...) are kept intact — only the implicit "ai/"
+# registry is stripped by Docker Model Runner.
+normalize_model_id() {
+  local id="${1#ai/}"
+  printf '%s\n' "${id,,}"
+}
+
+# Returns currently-loaded Docker Model Runner models in canonical short
+# form, one identifier per line. Empty output means "nothing loaded" or
+# "Model Runner unavailable".
+list_loaded_models() {
+  docker model ps 2>/dev/null | awk 'NR>1 && NF>0 {print $1}'
+}
+
+# Given a canonical (lowercased) model identifier as reported by
+# `docker model ps`, return the case-preserved name reported by
+# `docker model list`. This indirection is required because
+# `docker model unload` is case-sensitive and only accepts the
+# case-preserved form (e.g. `gemma4:31B`, not `gemma4:31b`).
+# Echoes the canonical input verbatim if no `list` entry matches
+# (so the caller can still attempt the unload).
+resolve_to_list_name() {
+  local canonical="$1"
+  local match
+  match="$(
+    docker model list 2>/dev/null | awk -v target="$canonical" '
+      NR>1 && NF>0 && tolower($1) == target { print $1; exit }
+    '
+  )"
+  printf '%s\n' "${match:-$canonical}"
+}
+
+MODEL_OVERLAY=""
+REQUESTED_MODEL_ID=""
+
+if [[ -n "$MODEL_PROFILE" ]]; then
+  MODEL_OVERLAY="${SCRIPT_DIR}/models/${MODEL_PROFILE}.yaml"
+  if [[ ! -f "$MODEL_OVERLAY" ]]; then
+    echo "Error: no overlay file for model '${MODEL_PROFILE}' at ${MODEL_OVERLAY}" >&2
+    echo "Available overlays:" >&2
+    list_model_overlays "  " >&2
+    exit 1
+  fi
+
+  REQUESTED_MODEL_ID="$(read_overlay_model_id "$MODEL_OVERLAY")"
+  if [[ -z "$REQUESTED_MODEL_ID" ]]; then
+    echo "Error: could not read the 'model:' field from ${MODEL_OVERLAY}" >&2
+    exit 1
+  fi
+  REQUESTED_CANONICAL="$(normalize_model_id "$REQUESTED_MODEL_ID")"
+
+  loaded="$(list_loaded_models)"
+  # Filter out the requested model (compare in canonical form); what
+  # remains is "other models that are currently loaded and would consume
+  # memory alongside the requested one".
+  others=""
+  if [[ -n "$loaded" ]]; then
+    others="$(grep -vFx -- "$REQUESTED_CANONICAL" <<<"$loaded" | grep -v '^[[:space:]]*$' || true)"
+  fi
+
+  if [[ -n "$others" ]]; then
+    echo "Different Docker Model Runner model(s) are currently loaded:"
+    while IFS= read -r m; do
+      [[ -n "$m" ]] && echo "    $m"
+    done <<<"$others"
+    echo "You requested:"
+    echo "    ${REQUESTED_MODEL_ID}  (canonical: ${REQUESTED_CANONICAL})"
+    echo
+    echo "Continuing will unload the other model(s) via 'docker model unload'"
+    echo "to free memory before starting OpenCode."
+    echo
+    read -r -p "Continue (unload others, then start)? [y/N]: " _ans
+    case "$_ans" in
+      y|Y|yes|YES)
+        while IFS= read -r m; do
+          [[ -n "$m" ]] || continue
+          # `docker model ps` reports lowercased names, but
+          # `docker model unload` requires the case-preserved name from
+          # `docker model list` — look it up here.
+          target="$(resolve_to_list_name "$m")"
+          if [[ "$target" != "$m" ]]; then
+            echo "Unloading: ${target}  (loaded as ${m})"
+          else
+            echo "Unloading: ${target}"
+          fi
+          docker model unload "$target" || echo "  (unload failed for ${target} — continuing anyway)" >&2
+        done <<<"$others"
+        ;;
+      *)
+        echo "Aborted."
+        exit 1
+        ;;
+    esac
+  fi
 fi
 
 WORKSPACE_DIR="${WORKSPACE_ARG:-.}"
@@ -159,7 +279,11 @@ fi
 echo "Starting OpenCode in container..."
 echo "  Workspace: ${WORKSPACE_DIR}"
 echo "  Config:    ${HOME}/OpenCode/dot-opencode/"
-echo "  Model:     ${MODEL_PROFILE} (${MODEL_OVERLAY})"
+if [[ -n "$MODEL_PROFILE" ]]; then
+  echo "  Model:     ${MODEL_PROFILE} -> ${REQUESTED_MODEL_ID}"
+else
+  echo "  Model:     (none — cloud/third-party mode; see opencode.jsonc)"
+fi
 echo "  User:      $(id -un) (PUID=${PUID}, PGID=${PGID})"
 echo "---------------------------------------------------"
 echo "  Script Directory:    ${SCRIPT_DIR}"
@@ -170,7 +294,14 @@ export OC_PROJECT_NAME
 export DIRECTORY_ID
 cd "${SCRIPT_DIR}"
 
-# Merge the base compose file with the selected model overlay. The overlay
-# contributes the single `models:` binding so Docker Model Runner only ever
-# loads one model into memory per run.
-docker compose -f docker-compose.yaml -f "models/${MODEL_PROFILE}.yaml" run --rm opencode
+# Build the compose invocation. The base compose file has no `models:`
+# bindings; if a local model was selected, merge in the matching overlay
+# so Docker Model Runner sees exactly one binding (and loads exactly one
+# model into memory). If no --model was given, launch without an overlay
+# and let OpenCode use whatever provider opencode.jsonc points at.
+COMPOSE_ARGS=(-f docker-compose.yaml)
+if [[ -n "$MODEL_PROFILE" ]]; then
+  COMPOSE_ARGS+=(-f "models/${MODEL_PROFILE}.yaml")
+fi
+
+docker compose "${COMPOSE_ARGS[@]}" run --rm opencode
