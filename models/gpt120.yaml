@@ -1,0 +1,12 @@
+services:
+  opencode:
+    models:
+      llm_active:
+        endpoint_var: ACTIVE_MODEL_URL
+        model_var: ACTIVE_MODEL_NAME
+    environment:
+      ACTIVE_MODEL_DISPLAY_NAME: "GPT OSS 120B"
+
+models:
+  llm_active:
+    model: huggingface.co/unsloth/gpt-oss-120b-gguf:F16

@@ -1,0 +1,19 @@
+services:
+  opencode:
+    models:
+      llm_active:
+        endpoint_var: ACTIVE_MODEL_URL
+        model_var: ACTIVE_MODEL_NAME
+    environment:
+      ACTIVE_MODEL_DISPLAY_NAME: "Mistral Small 4"
+
+models:
+  llm_active:
+    model: ai/mistral-small4
+    runtime_flags:
+      - "--temp"
+      - "0.7"
+      - "--top-p"
+      - "0.95"
+      # - "--reasoning_effort"
+      # - "high"

@@ -1,34 +1,25 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  // Only enable (local) Docker Model Runner Provider
-  "enabled_providers": ["gpt20B", "gpt120B"],
+  // Only one provider is ever enabled — the active model is selected at
+  // container start via `opencode-run.sh --model <shortname>`, which merges
+  // the matching `models/<shortname>.yaml` overlay. The overlay populates
+  // ACTIVE_MODEL_URL, ACTIVE_MODEL_NAME, and ACTIVE_MODEL_DISPLAY_NAME so
+  // this single provider block adapts to whichever model is bound.
+  "enabled_providers": ["active"],
   // Default Agent
   "default_agent": "plan",
-  // Automatically Compact to avoid exceeding the context limit
+  // Automatically compact to avoid exceeding the context limit
   "compaction": { "auto": true, "prune": true },
-  // Docker Model Runner Settings
   "provider": {
-    "gpt20B": {
+    "active": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "GPT OSS 20B",
+      "name": "{env:ACTIVE_MODEL_DISPLAY_NAME}",
       "options": {
-        "baseURL": "{env:GPT20_MODEL_URL}",
+        "baseURL": "{env:ACTIVE_MODEL_URL}",
       },
       "models": {
-        "{env:GPT20_MODEL_NAME}": {
-          "name": "{env:GPT20_MODEL_NAME}",
-        },
-      },
-    },
-    "gpt120B": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "GPT OSS 120B",
-      "options": {
-        "baseURL": "{env:GPT120_MODEL_URL}",
-      },
-      "models": {
-        "{env:GPT120_MODEL_NAME}": {
-          "name": "{env:GPT120_MODEL_NAME}",
+        "{env:ACTIVE_MODEL_NAME}": {
+          "name": "{env:ACTIVE_MODEL_NAME}",
         },
       },
     },

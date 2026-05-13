@@ -1,0 +1,12 @@
+services:
+  opencode:
+    models:
+      llm_active:
+        endpoint_var: ACTIVE_MODEL_URL
+        model_var: ACTIVE_MODEL_NAME
+    environment:
+      ACTIVE_MODEL_DISPLAY_NAME: "Gemma 4 31B"
+
+models:
+  llm_active:
+    model: ai/gemma4:31B

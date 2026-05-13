@@ -1,12 +1,81 @@
 #!/usr/bin/env bash
-# Usage: ./opencode-run.sh [/path/to/your/project]
+# Usage: ./opencode-run.sh [--model SHORTNAME] [/path/to/your/project]
 # If no path given, uses current directory.
+# If no model given, defaults to "gpt20" (smallest, safest for memory).
+# Run with --help for the list of available model shortnames.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIRECTORY_ID="$(echo -n "${SCRIPT_DIR}+${HOSTNAME}" | sha512sum | cut -c1-12)"
-WORKSPACE_DIR="${1:-.}"
+
+# ------------------------------------------------------------------
+# Argument parsing: --model SHORTNAME and optional workspace path
+# ------------------------------------------------------------------
+MODEL_PROFILE="gpt20"
+WORKSPACE_ARG=""
+
+# Enumerate available model overlays. Each line is "${prefix}${shortname}".
+# Uses a glob (rather than `ls`) so filenames with unusual characters are
+# handled correctly.
+list_model_overlays() {
+  local prefix="${1:-}"
+  local f
+  for f in "${SCRIPT_DIR}/models/"*.yaml; do
+    [[ -f "$f" ]] || continue
+    printf '%s%s\n' "$prefix" "$(basename "$f" .yaml)"
+  done
+}
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [--model SHORTNAME] [PATH]
+
+  --model, -m SHORTNAME   Model overlay to load (default: ${MODEL_PROFILE}).
+                          Available overlays:
+$(list_model_overlays "                            ")
+  --help, -h              Show this help and exit.
+  PATH                    Project directory (default: current directory).
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model|-m)
+      [[ $# -ge 2 ]] || { echo "Error: --model requires an argument" >&2; exit 1; }
+      MODEL_PROFILE="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Error: unknown flag $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -z "$WORKSPACE_ARG" ]]; then
+        WORKSPACE_ARG="$1"
+      else
+        echo "Error: unexpected extra argument: $1" >&2
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+MODEL_OVERLAY="${SCRIPT_DIR}/models/${MODEL_PROFILE}.yaml"
+if [[ ! -f "$MODEL_OVERLAY" ]]; then
+  echo "Error: no overlay file for model '${MODEL_PROFILE}' at ${MODEL_OVERLAY}" >&2
+  echo "Available overlays:" >&2
+  list_model_overlays "  " >&2
+  exit 1
+fi
+
+WORKSPACE_DIR="${WORKSPACE_ARG:-.}"
 
 # Resolve to absolute path
 WORKSPACE_DIR="$(cd "${WORKSPACE_DIR}" && pwd)"
@@ -90,6 +159,7 @@ fi
 echo "Starting OpenCode in container..."
 echo "  Workspace: ${WORKSPACE_DIR}"
 echo "  Config:    ${HOME}/OpenCode/dot-opencode/"
+echo "  Model:     ${MODEL_PROFILE} (${MODEL_OVERLAY})"
 echo "  User:      $(id -un) (PUID=${PUID}, PGID=${PGID})"
 echo "---------------------------------------------------"
 echo "  Script Directory:    ${SCRIPT_DIR}"
@@ -100,6 +170,7 @@ export OC_PROJECT_NAME
 export DIRECTORY_ID
 cd "${SCRIPT_DIR}"
 
-# Run the container using the generated compose file (docker-compose.yaml should be in the same directory)
-
-docker compose run --rm opencode
+# Merge the base compose file with the selected model overlay. The overlay
+# contributes the single `models:` binding so Docker Model Runner only ever
+# loads one model into memory per run.
+docker compose -f docker-compose.yaml -f "models/${MODEL_PROFILE}.yaml" run --rm opencode

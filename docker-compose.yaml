@@ -18,25 +18,18 @@ services:
       - "${HOME}/OpenCode/dot-gitconfig/.gitconfig:/home/abc/.gitconfig"
     working_dir: "/home/abc/${OC_PROJECT_NAME:-workspace}"
     environment:
-      TZ: "America/New_York"
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
-      OC_PROJECT_NAME: "${OC_PROJECT_NAME}"
-      OPENCODE_CONFIG_DIR: "/home/abc/OpenCode/dot-opencode"
+      TZ: "America/New_York"
       OPENCODE_CONFIG: "/home/abc/OpenCode/dot-opencode-json/opencode.jsonc"
-      OPENCODE_EXPERIMENTAL_LSP_TOOL: true
       OPENCODE_TUI_CONFIG: "/home/abc/OpenCode/dot-opencode-json/tui.jsonc"
+      OPENCODE_CONFIG_DIR: "/home/abc/OpenCode/dot-opencode"
+      OPENCODE_EXPERIMENTAL_LSP_TOOL: true
+      OC_PROJECT_NAME: "${OC_PROJECT_NAME}"
       TERM: "xterm-256color"
-    models:
-      llm_gpt20oss:
-        endpoint_var: GPT20_MODEL_URL
-        model_var: GPT20_MODEL_NAME
-      llm_gpt120oss:
-        endpoint_var: GPT120_MODEL_URL
-        model_var: GPT120_MODEL_NAME
 
-models:
-  llm_gpt20oss:
-    model: ai/gpt-oss:20B-F16
-  llm_gpt120oss:
-    model: huggingface.co/unsloth/gpt-oss-120b-gguf:F16
+# Model bindings are intentionally NOT defined here. Each model lives in its
+# own overlay file under `models/` and is selected at runtime via
+# `opencode-run.sh --model <shortname>`. This ensures only one model is
+# declared per service start, so Docker Model Runner only ever loads one
+# model into memory at a time.
