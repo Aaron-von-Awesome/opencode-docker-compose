@@ -40,6 +40,7 @@ Only **one** local model is bound to the service per launch — Docker Model Run
 ./opencode-run.sh --model gpt120   # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
 ./opencode-run.sh --model gemma31  # ai/gemma4:31B
 ./opencode-run.sh --model mistral  # ai/mistral-small4 (with sampler runtime_flags)
+./opencode-run.sh --model mistral128  # huggingface.co/unsloth/mistral-medium-3.5-128b-gguf (with sampler runtime_flags)
 ```
 
 Each shortname maps to the file `models/<shortname>.yaml`. To add a new model, drop a new overlay file in `models/` — no script edits needed. `./opencode-run.sh --help` lists what's available.
@@ -86,16 +87,16 @@ For cloud-mode usage, you'll want a different `opencode.jsonc` — one that decl
 
 ## Host-side layout (`${HOME}/OpenCode/...`)
 
-| Path | Maps to in container | Purpose |
-|------|----------------------|---------|
-| `dot-opencode/` | `OPENCODE_CONFIG_DIR` | Skills, agents, commands, themes, plugins |
-| `dot-opencode-json/opencode.jsonc` | `OPENCODE_CONFIG` | Global OpenCode config |
-| `dot-opencode-json/tui.jsonc` | `OPENCODE_TUI_CONFIG` | TUI config |
-| `dot-local/` | `~/.local/` | DB, auth, sessions, prompt history, model selection |
-| `dot-cache/` | `~/.cache/` | Download/build cache, agent binaries |
-| `dot-npm/` | `~/.npm/` | Plugin/skill dependency cache |
-| `dot-ssh/` | `~/.ssh/` | SSH keys (generated on first run) |
-| `dot-gitconfig/.gitconfig` | `~/.gitconfig` | Git identity (prompted on first run) |
+| Path                               | Maps to in container  | Purpose                                             |
+| ---------------------------------- | --------------------- | --------------------------------------------------- |
+| `dot-opencode/`                    | `OPENCODE_CONFIG_DIR` | Skills, agents, commands, themes, plugins           |
+| `dot-opencode-json/opencode.jsonc` | `OPENCODE_CONFIG`     | Global OpenCode config                              |
+| `dot-opencode-json/tui.jsonc`      | `OPENCODE_TUI_CONFIG` | TUI config                                          |
+| `dot-local/`                       | `~/.local/`           | DB, auth, sessions, prompt history, model selection |
+| `dot-cache/`                       | `~/.cache/`           | Download/build cache, agent binaries                |
+| `dot-npm/`                         | `~/.npm/`             | Plugin/skill dependency cache                       |
+| `dot-ssh/`                         | `~/.ssh/`             | SSH keys (generated on first run)                   |
+| `dot-gitconfig/.gitconfig`         | `~/.gitconfig`        | Git identity (prompted on first run)                |
 
 Edit config files on the host; changes take effect on the next container start. Auth, sessions, and DB persist across image rebuilds.
 
