@@ -5,12 +5,19 @@ ARG UV_VERSION=0.11.8
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Locale defaults. Generated in the apt RUN below.
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
 # Install Node.js and development tools
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \
   ca-certificates \
   curl \
-  gnupg && \
+  gnupg \
+  locales && \
+  locale-gen en_US.UTF-8 && \
   curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR_VERSION}.x | bash - && \
   apt-get install -y --no-install-recommends \
   nodejs \
@@ -33,9 +40,17 @@ RUN curl -L https://releases.astral.sh/github/uv/releases/download/${UV_VERSION}
   && chmod +x /usr/local/bin/uvx \
   && rm uv.tar.gz
 
-# Create default user "abc" (linuxserver convention) with placeholder UID/GID
-RUN groupadd -g 911 abc && \
-  useradd -u 911 -g 911 -m -d /home/abc -s /bin/bash abc
+# Create default user "abc" (linuxserver convention) at placeholder UID 911.
+# `-U` creates a same-named group automatically (GID auto-assigned; both
+# UID and GID are remapped to PUID/PGID by entrypoint.sh at runtime, so
+# the initial GID value is irrelevant).
+#
+# Also remove the default `ubuntu` user that ships with ubuntu:24.04 — we
+# never use it, and its UID 1000 collides with the most common host PUID,
+# which would otherwise force the `usermod -o` remap into duplicate-UID
+# territory. Removing it tightens containment.
+RUN userdel -r ubuntu 2>/dev/null || true && \
+  useradd -u 911 -U -m -d /home/abc -s /bin/bash abc
 
 # Install OpenCode. The installer is hardcoded to write the binary to
 # $HOME/.opencode/bin/opencode and offers no prefix override. We install

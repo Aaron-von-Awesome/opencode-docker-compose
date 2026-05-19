@@ -40,12 +40,17 @@ Only **one** local model is bound to the service per launch — Docker Model Run
 ./opencode-run.sh --model gpt120   # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
 ./opencode-run.sh --model gemma31  # ai/gemma4:31B
 ./opencode-run.sh --model mistral  # ai/mistral-small4 (with sampler runtime_flags)
-./opencode-run.sh --model mistral128  # huggingface.co/unsloth/mistral-medium-3.5-128b-gguf (with sampler runtime_flags)
 ```
 
 Each shortname maps to the file `models/<shortname>.yaml`. To add a new model, drop a new overlay file in `models/` — no script edits needed. `./opencode-run.sh --help` lists what's available.
 
+#### Pre-flight: unload conflicting models
+
 Before launch, the script consults `docker model ps`. If any model **other than** the requested one is currently loaded, you'll see a prompt listing the offending models. Confirming runs `docker model unload <id>` for each of them so Docker Model Runner only has the requested model resident when OpenCode starts. The unload preserves the model on disk — it just frees memory — so the next launch of that model doesn't re-download anything.
+
+#### Note: `docker-model-runner` reports `(unhealthy)` — ignore it
+
+The `docker/model-runner` image ships with a `curl -f /health` healthcheck and no `start_period`. The first ~2 minutes of any large F16/Q4 model load show the container as `(unhealthy)` because the inference server hasn't bound port 8080 yet, and the failures accumulate against the default retry budget. This is cosmetic only — inference works regardless. Several runtime workarounds were attempted (`docker update --health-start-period`, `--no-healthcheck`, and `--health-cmd "/bin/true"`); none stuck, because the DMR plugin reasserts the image's declared healthcheck on each model-binding cycle. Treat the `(unhealthy)` annotation in `docker ps` as expected noise.
 
 ### Cloud / third-party provider
 
@@ -102,8 +107,9 @@ Edit config files on the host; changes take effect on the next container start. 
 
 ## Files
 
-- `Dockerfile` — Ubuntu 24.04 base; installs OpenCode via the official installer, then copies the binary to `/usr/local/bin/` so it survives bind mounts.
+- `Dockerfile` — Ubuntu 24.04 base. Installs Node + uv + OpenCode toolchain; copies the OpenCode binary to `/usr/local/bin/` so it survives any bind mount under `/home/abc`. Hardening borrowed from linuxserver.io: `userdel ubuntu` removes the default UID-1000 user that ships with 24.04 (eliminates a PUID collision), `locales` is installed and `en_US.UTF-8` generated to prevent TUI/encoding glitches, and the `abc` user is created via `useradd -u 911 -U` (matching group auto-created; GID is remapped at runtime).
 - `entrypoint.sh` — Remaps `abc` UID/GID to host `PUID`/`PGID`, then drops privileges via `gosu`.
-- `opencode-run.sh` — Host-side launcher (arg parsing, UID/GID export, host-dir bootstrap, git/SSH bootstrap, compose invocation with the selected model overlay).
+- `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay.
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
-- `models/*.yaml` — One overlay per model. Each defines a single `models:` binding and the corresponding top-level model spec. Selected at runtime via `--model`.
+- `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
+- `dot-opencode-json/opencode.jsonc`, `dot-opencode-json/tui.jsonc` — Template configs. The live versions are bind-mounted from `${HOME}/OpenCode/dot-opencode-json/`; edit those, not these.

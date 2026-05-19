@@ -109,8 +109,20 @@ normalize_model_id() {
 # Returns currently-loaded Docker Model Runner models in canonical short
 # form, one identifier per line. Empty output means "nothing loaded" or
 # "Model Runner unavailable".
+#
+# Docker Model Runner can interleave pull-progress lines (e.g. layer IDs
+# and "Status:", "Successfully", etc.) before the actual `docker model ps`
+# table when the CLI plugin auto-updates on invocation. A naive
+# "skip line 1" parser captures those as bogus model identifiers, so we:
+#   1. Anchor on the literal "MODEL NAME" header to find the real table.
+#   2. Apply a regex sanity filter so only strings that look like model
+#      identifiers (lowercase alphanumerics, optional `name:tag` shape
+#      with a non-empty tag) get through.
 list_loaded_models() {
-  docker model ps 2>/dev/null | awk 'NR>1 && NF>0 {print $1}'
+  docker model ps 2>/dev/null | awk '
+    /^MODEL[[:space:]]+NAME/ { in_table = 1; next }
+    in_table && NF > 0 && $1 ~ /^[a-z0-9._/-]+(:[a-z0-9._-]+)?$/ { print $1 }
+  '
 }
 
 # Given a canonical (lowercased) model identifier as reported by
