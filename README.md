@@ -39,7 +39,7 @@ Only **one** local model is bound to the service per launch — Docker Model Run
 ./opencode-run.sh --model gpt20    # ai/gpt-oss:20B-F16
 ./opencode-run.sh --model gpt120   # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
 ./opencode-run.sh --model gemma31  # ai/gemma4:31B
-./opencode-run.sh --model mistral  # ai/mistral-small4 (with sampler runtime_flags)
+./opencode-run.sh --model devstral # ai/devstral-small-2
 ```
 
 Each shortname maps to the file `models/<shortname>.yaml`. To add a new model, drop a new overlay file in `models/` — no script edits needed. `./opencode-run.sh --help` lists what's available.
