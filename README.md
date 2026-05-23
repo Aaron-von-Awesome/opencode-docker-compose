@@ -27,6 +27,29 @@ The script:
 5. On first run, prompts for git identity and generates an SSH key (`id_opencode`).
 6. Builds the image if needed, then runs `docker compose -f docker-compose.yaml [-f models/<shortname>.yaml] run --rm opencode`.
 
+## Convenience: shell alias
+
+Add an alias to your `~/.bashrc` so you can launch from any directory without typing the full script path. Assuming the launcher lives at `${HOME}/OpenCode/opencode-run.sh`:
+
+```bash
+echo "alias opencode='\${HOME}/OpenCode/opencode-run.sh'" >> ~/.bashrc
+source ~/.bashrc
+```
+
+(Note the escaped `\${HOME}` — that keeps the variable as-is in the alias definition so it's expanded *at run time*, not when the alias is written.)
+
+Once the alias is in place, every form of the launcher works the same way — arguments are passed through unchanged:
+
+```bash
+opencode                                  # cloud mode, current directory as workspace
+opencode --model gpt20                    # local model, current directory
+opencode /path/to/your/project            # cloud mode, given project as workspace
+opencode --model gpt120 /path/to/project  # local model, given project
+opencode --help                           # show usage and available overlays
+```
+
+Because the alias is a literal text substitution, anything you'd put on the `./opencode-run.sh` command line works identically with `opencode`. The script's own argument parser handles flag/path ordering.
+
 ## Model selection
 
 Two modes:

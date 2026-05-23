@@ -1,3 +1,14 @@
+---
+name: opencode-va # Project Name must be lowercase
+
+networks:
+  opencode-net:
+    external: false
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 192.168.177.0/24
+
 services:
   opencode:
     image: "local/${DIRECTORY_ID:-iocane}/opencode:latest-stable"
@@ -6,6 +17,8 @@ services:
       dockerfile: Dockerfile
     stdin_open: true
     tty: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - "${WORKSPACE_DIR:-.}:/home/abc/${OC_PROJECT_NAME:-workspace}"
       - "${HOME}/OpenCode/dot-opencode:/home/abc/OpenCode/dot-opencode"
@@ -40,6 +53,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    networks:
+      opencode-net:
+        ipv4_address: "192.168.177.10"
 
 # Model bindings are intentionally NOT defined here. Each model lives in its
 # own overlay file under `models/` and is selected at runtime via
