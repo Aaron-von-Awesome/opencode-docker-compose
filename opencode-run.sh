@@ -16,7 +16,7 @@ DIRECTORY_ID="$(echo -n "${SCRIPT_DIR}+${HOSTNAME}" | sha512sum | cut -c1-12)"
 # ------------------------------------------------------------------
 # Argument parsing
 # ------------------------------------------------------------------
-MODEL_PROFILE=""        # empty => cloud/third-party mode (no overlay)
+MODEL_PROFILE="" # empty => cloud/third-party mode (no overlay)
 WORKSPACE_ARG=""
 
 # Enumerate available model overlays. Each line is "${prefix}${shortname}".
@@ -49,29 +49,32 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model|-m)
-      [[ $# -ge 2 ]] || { echo "Error: --model requires an argument" >&2; exit 1; }
-      MODEL_PROFILE="$2"
-      shift 2
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    -*)
-      echo "Error: unknown flag $1" >&2
-      usage >&2
+  --model | -m)
+    [[ $# -ge 2 ]] || {
+      echo "Error: --model requires an argument" >&2
       exit 1
-      ;;
-    *)
-      if [[ -z "$WORKSPACE_ARG" ]]; then
-        WORKSPACE_ARG="$1"
-      else
-        echo "Error: unexpected extra argument: $1" >&2
-        exit 1
-      fi
-      shift
-      ;;
+    }
+    MODEL_PROFILE="$2"
+    shift 2
+    ;;
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  -*)
+    echo "Error: unknown flag $1" >&2
+    usage >&2
+    exit 1
+    ;;
+  *)
+    if [[ -z "$WORKSPACE_ARG" ]]; then
+      WORKSPACE_ARG="$1"
+    else
+      echo "Error: unexpected extra argument: $1" >&2
+      exit 1
+    fi
+    shift
+    ;;
   esac
 done
 
@@ -184,25 +187,25 @@ if [[ -n "$MODEL_PROFILE" ]]; then
     echo
     read -r -p "Continue (unload others, then start)? [y/N]: " _ans
     case "$_ans" in
-      y|Y|yes|YES)
-        while IFS= read -r m; do
-          [[ -n "$m" ]] || continue
-          # `docker model ps` reports lowercased names, but
-          # `docker model unload` requires the case-preserved name from
-          # `docker model list` — look it up here.
-          target="$(resolve_to_list_name "$m")"
-          if [[ "$target" != "$m" ]]; then
-            echo "Unloading: ${target}  (loaded as ${m})"
-          else
-            echo "Unloading: ${target}"
-          fi
-          docker model unload "$target" || echo "  (unload failed for ${target} — continuing anyway)" >&2
-        done <<<"$others"
-        ;;
-      *)
-        echo "Aborted."
-        exit 1
-        ;;
+    y | Y | yes | YES)
+      while IFS= read -r m; do
+        [[ -n "$m" ]] || continue
+        # `docker model ps` reports lowercased names, but
+        # `docker model unload` requires the case-preserved name from
+        # `docker model list` — look it up here.
+        target="$(resolve_to_list_name "$m")"
+        if [[ "$target" != "$m" ]]; then
+          echo "Unloading: ${target}  (loaded as ${m})"
+        else
+          echo "Unloading: ${target}"
+        fi
+        docker model unload "$target" || echo "  (unload failed for ${target} — continuing anyway)" >&2
+      done <<<"$others"
+      ;;
+    *)
+      echo "Aborted."
+      exit 1
+      ;;
     esac
   fi
 fi
@@ -221,7 +224,7 @@ export PUID=${PUID}
 export PGID=${PGID}
 
 # Ensure host-side config files exist so Docker doesn't create them as directories
-mkdir -p "${HOME}/OpenCode/dot-opencode"
+mkdir -p "${HOME}/OpenCode/dot-config"
 mkdir -p "${HOME}/OpenCode/dot-opencode-json"
 mkdir -p "${HOME}/OpenCode/dot-local"
 mkdir -p "${HOME}/OpenCode/dot-cache"
@@ -290,7 +293,7 @@ fi
 
 echo "Starting OpenCode in container..."
 echo "  Workspace: ${WORKSPACE_DIR}"
-echo "  Config:    ${HOME}/OpenCode/dot-opencode/"
+echo "  Config:    ${HOME}/OpenCode/dot-config/"
 if [[ -n "$MODEL_PROFILE" ]]; then
   echo "  Model:     ${MODEL_PROFILE} -> ${REQUESTED_MODEL_ID}"
 else

@@ -115,16 +115,16 @@ For cloud-mode usage, you'll want a different `opencode.jsonc` — one that decl
 
 ## Host-side layout (`${HOME}/OpenCode/...`)
 
-| Path                               | Maps to in container  | Purpose                                             |
-| ---------------------------------- | --------------------- | --------------------------------------------------- |
-| `dot-opencode/`                    | `OPENCODE_CONFIG_DIR` | Skills, agents, commands, themes, plugins           |
-| `dot-opencode-json/opencode.jsonc` | `OPENCODE_CONFIG`     | Global OpenCode config                              |
-| `dot-opencode-json/tui.jsonc`      | `OPENCODE_TUI_CONFIG` | TUI config                                          |
-| `dot-local/`                       | `~/.local/`           | DB, auth, sessions, prompt history, model selection |
-| `dot-cache/`                       | `~/.cache/`           | Download/build cache, agent binaries                |
-| `dot-npm/`                         | `~/.npm/`             | Plugin/skill dependency cache                       |
-| `dot-ssh/`                         | `~/.ssh/`             | SSH keys (generated on first run)                   |
-| `dot-gitconfig/.gitconfig`         | `~/.gitconfig`        | Git identity (prompted on first run)                |
+| Path                               | Maps to in container  | Purpose                                                              |
+| ---------------------------------- | --------------------- | -------------------------------------------------------------------- |
+| `dot-config/`                      | `~/.config/`          | Skills, agents, commands, themes, plugins (under `~/.config/opencode/`) |
+| `dot-opencode-json/opencode.jsonc` | `OPENCODE_CONFIG`     | Global OpenCode config                                               |
+| `dot-opencode-json/tui.jsonc`      | `OPENCODE_TUI_CONFIG` | TUI config                                                           |
+| `dot-local/`                       | `~/.local/`           | DB, auth, sessions, prompt history, model selection                  |
+| `dot-cache/`                       | `~/.cache/`           | Download/build cache, agent binaries                                 |
+| `dot-npm/`                         | `~/.npm/`             | Plugin/skill dependency cache                                        |
+| `dot-ssh/`                         | `~/.ssh/`             | SSH keys (generated on first run)                                    |
+| `dot-gitconfig/.gitconfig`         | `~/.gitconfig`        | Git identity (prompted on first run)                                 |
 
 Edit config files on the host; changes take effect on the next container start. Auth, sessions, and DB persist across image rebuilds.
 
