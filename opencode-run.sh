@@ -231,15 +231,18 @@ mkdir -p "${HOME}/OpenCode/dot-npm"
 mkdir -p "${HOME}/OpenCode/dot-ssh"
 mkdir -p "${HOME}/OpenCode/dot-gitconfig"
 
-# Seed OpenCode's default config location (~/.config/opencode/) from the
-# canonical templates that live next to this script. Re-runs always
-# overwrite the host-side copies, so the templates at the script root are
-# the single source of truth. If a template is missing, silently skip and
-# let OpenCode create its own defaults on first start.
+# Move (not copy) the canonical .jsonc templates from the script root
+# into OpenCode's default config location (~/.config/opencode/). The
+# script root acts as a transient handoff slot: after the first launch
+# it's empty, and subsequent launches skip the move silently — the
+# already-seeded files at the destination keep being honored by OpenCode.
+# To push an updated config, re-run `opencode-init.sh` to re-copy the
+# canonical templates from the cloned repo into the script root, then
+# `opencode-run.sh` will move them into place on the next launch.
 for _config_name in opencode.jsonc tui.jsonc; do
   _src="${SCRIPT_DIR}/${_config_name}"
   if [ -f "$_src" ]; then
-    cp -f "$_src" "${HOME}/OpenCode/dot-config/opencode/${_config_name}"
+    mv -f "$_src" "${HOME}/OpenCode/dot-config/opencode/${_config_name}"
   fi
 done
 unset _config_name _src

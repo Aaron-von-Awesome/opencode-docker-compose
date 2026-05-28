@@ -144,9 +144,15 @@ For cloud-mode usage, you'll want a different `opencode.jsonc` — one that decl
 
 ### Config seeding
 
-`opencode.jsonc` and `tui.jsonc` live alongside `opencode-run.sh` at the script root. On every launch, the script copies whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/`, which is bind-mounted to `~/.config/opencode/` inside the container — the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
+`opencode.jsonc` and `tui.jsonc` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
 
-The two template files at the script root are the **canonical source of truth** — edit those and re-launch. The seeded copies under `dot-config/opencode/` are overwritten on every run. If either template file is absent, the script silently skips that copy and OpenCode falls back to whatever it would have written by default.
+The script root is a **transient handoff slot**, not a permanent home for the config files:
+
+- First launch after `opencode-init.sh`: the two `.jsonc` files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/` (overwriting whatever was there).
+- Subsequent launches: the script root is empty → the move step is silently skipped, and OpenCode continues reading the previously-seeded files from `dot-config/opencode/`.
+- If you never run `opencode-init.sh` (or you delete the source files), the move step is skipped on every launch and OpenCode falls back to whatever defaults it writes itself.
+
+**To push updated config:** edit the canonical templates in your cloned repo, re-run `opencode-init.sh` (which re-copies them into the script root, prompting on overwrite), then launch with `opencode` — the move step picks them up.
 
 Edit config files on the host; changes take effect on the next container start. Auth, sessions, and DB persist across image rebuilds.
 
