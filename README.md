@@ -6,6 +6,26 @@ A local development environment for OpenCode, fully contained in a Docker contai
 
 - Docker with the Compose plugin (`docker compose ...`)
 
+## First-time setup
+
+Clone the repo, then run the initializer from inside the `OpenCode-Refactor/` directory:
+
+```bash
+cd OpenCode-Refactor
+./opencode-init.sh
+```
+
+`opencode-init.sh` does two things:
+
+1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `opencode-run.sh`, the two `.jsonc` templates, the `models/` overlay directory, and anything else in the repo root *except* `README.md`, anything matching `.git*`, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
+2. **Adds the `opencode` alias to `~/.bashrc`** (if not already present) so you can launch from any directory:
+   ```bash
+   alias opencode='${HOME}/OpenCode/opencode-run.sh'
+   ```
+   After it finishes, run `source ~/.bashrc` or open a new shell to activate.
+
+Safe to re-run — overwrite prompts and the alias-presence check keep it idempotent.
+
 ## Quick start
 
 ```bash
@@ -29,7 +49,7 @@ The script:
 
 ## Convenience: shell alias
 
-Add an alias to your `~/.bashrc` so you can launch from any directory without typing the full script path. Assuming the launcher lives at `${HOME}/OpenCode/opencode-run.sh`:
+`opencode-init.sh` already adds the `opencode` alias to `~/.bashrc` on first-time setup, so you usually don't need to touch this. If you skipped initialization or want to install the alias manually:
 
 ```bash
 echo "alias opencode='\${HOME}/OpenCode/opencode-run.sh'" >> ~/.bashrc
@@ -59,10 +79,9 @@ Two modes:
 Only **one** local model is bound to the service per launch — Docker Model Runner has no documented way to cap concurrent loads, so we control it at the compose level by merging in exactly one overlay file at runtime.
 
 ```bash
-./opencode-run.sh --model gpt20    # ai/gpt-oss:20B-F16
-./opencode-run.sh --model gpt120   # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
-./opencode-run.sh --model gemma31  # ai/gemma4:31B
-./opencode-run.sh --model devstral # ai/devstral-small-2
+./opencode-run.sh --model gpt20   # ai/gpt-oss:20B-F16
+./opencode-run.sh --model gpt120  # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
+./opencode-run.sh --model gemma31 # ai/gemma4:31B
 ```
 
 Each shortname maps to the file `models/<shortname>.yaml`. To add a new model, drop a new overlay file in `models/` — no script edits needed. `./opencode-run.sh --help` lists what's available.
@@ -115,24 +134,29 @@ For cloud-mode usage, you'll want a different `opencode.jsonc` — one that decl
 
 ## Host-side layout (`${HOME}/OpenCode/...`)
 
-| Path                               | Maps to in container  | Purpose                                                              |
-| ---------------------------------- | --------------------- | -------------------------------------------------------------------- |
-| `dot-config/`                      | `~/.config/`          | Skills, agents, commands, themes, plugins (under `~/.config/opencode/`) |
-| `dot-opencode-json/opencode.jsonc` | `OPENCODE_CONFIG`     | Global OpenCode config                                               |
-| `dot-opencode-json/tui.jsonc`      | `OPENCODE_TUI_CONFIG` | TUI config                                                           |
-| `dot-local/`                       | `~/.local/`           | DB, auth, sessions, prompt history, model selection                  |
-| `dot-cache/`                       | `~/.cache/`           | Download/build cache, agent binaries                                 |
-| `dot-npm/`                         | `~/.npm/`             | Plugin/skill dependency cache                                        |
-| `dot-ssh/`                         | `~/.ssh/`             | SSH keys (generated on first run)                                    |
-| `dot-gitconfig/.gitconfig`         | `~/.gitconfig`        | Git identity (prompted on first run)                                 |
+| Path                       | Maps to in container | Purpose                                                                                                                                              |
+| -------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dot-config/`              | `~/.config/`         | Everything OpenCode reads from its XDG default location — skills, agents, commands, themes, plugins (`~/.config/opencode/*`), plus the seeded `opencode.jsonc` and `tui.jsonc` (see "Config seeding" below). |
+| `dot-local/`               | `~/.local/`          | DB, auth, sessions, prompt history, model selection                                                                                                  |
+| `dot-cache/`               | `~/.cache/`          | Download/build cache, agent binaries                                                                                                                 |
+| `dot-npm/`                 | `~/.npm/`            | Plugin/skill dependency cache                                                                                                                        |
+| `dot-ssh/`                 | `~/.ssh/`            | SSH keys (generated on first run)                                                                                                                    |
+| `dot-gitconfig/.gitconfig` | `~/.gitconfig`       | Git identity (prompted on first run)                                                                                                                 |
+
+### Config seeding
+
+`opencode.jsonc` and `tui.jsonc` live alongside `opencode-run.sh` at the script root. On every launch, the script copies whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/`, which is bind-mounted to `~/.config/opencode/` inside the container — the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
+
+The two template files at the script root are the **canonical source of truth** — edit those and re-launch. The seeded copies under `dot-config/opencode/` are overwritten on every run. If either template file is absent, the script silently skips that copy and OpenCode falls back to whatever it would have written by default.
 
 Edit config files on the host; changes take effect on the next container start. Auth, sessions, and DB persist across image rebuilds.
 
 ## Files
 
+- `opencode-init.sh` — Host-side first-time-setup script. Copies the project tree to `${HOME}/OpenCode/` (excluding `README.md`, `.git*`, and itself), prompts before overwriting existing files, and installs the `opencode` alias in `~/.bashrc` if not already present. Idempotent; safe to re-run.
 - `Dockerfile` — Ubuntu 24.04 base. Installs Node + uv + OpenCode toolchain; copies the OpenCode binary to `/usr/local/bin/` so it survives any bind mount under `/home/abc`. Hardening borrowed from linuxserver.io: `userdel ubuntu` removes the default UID-1000 user that ships with 24.04 (eliminates a PUID collision), `locales` is installed and `en_US.UTF-8` generated to prevent TUI/encoding glitches, and the `abc` user is created via `useradd -u 911 -U` (matching group auto-created; GID is remapped at runtime).
 - `entrypoint.sh` — Remaps `abc` UID/GID to host `PUID`/`PGID`, then drops privileges via `gosu`.
 - `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay.
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
 - `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
-- `dot-opencode-json/opencode.jsonc`, `dot-opencode-json/tui.jsonc` — Template configs. The live versions are bind-mounted from `${HOME}/OpenCode/dot-opencode-json/`; edit those, not these.
+- `opencode.jsonc`, `tui.jsonc` — Canonical config templates at the script root. Copied (overwriting) into `${HOME}/OpenCode/dot-config/opencode/` on every launch, which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.

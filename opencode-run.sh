@@ -99,7 +99,6 @@ read_overlay_model_id() {
 # Examples:
 #   "ai/gpt-oss:20B-F16"                            -> "gpt-oss:20b-f16"
 #   "ai/gemma4:31B"                                 -> "gemma4:31b"
-#   "ai/mistral-small4"                             -> "mistral-small4"
 #   "huggingface.co/unsloth/gpt-oss-120b-gguf:F16"  -> "huggingface.co/unsloth/gpt-oss-120b-gguf:f16"
 # Non-default registries (containing a "." in the first path segment,
 # e.g. huggingface.co/...) are kept intact — only the implicit "ai/"
@@ -223,17 +222,27 @@ PGID="$(id -g)"
 export PUID=${PUID}
 export PGID=${PGID}
 
-# Ensure host-side config files exist so Docker doesn't create them as directories
-mkdir -p "${HOME}/OpenCode/dot-config"
-mkdir -p "${HOME}/OpenCode/dot-opencode-json"
+# Ensure host-side directories exist so Docker doesn't create them as
+# directories with root ownership at mount time.
+mkdir -p "${HOME}/OpenCode/dot-config/opencode"
 mkdir -p "${HOME}/OpenCode/dot-local"
 mkdir -p "${HOME}/OpenCode/dot-cache"
 mkdir -p "${HOME}/OpenCode/dot-npm"
 mkdir -p "${HOME}/OpenCode/dot-ssh"
 mkdir -p "${HOME}/OpenCode/dot-gitconfig"
-# Create an empty OpenCode config and tui JSON(C) file if missing
-touch "${HOME}/OpenCode/dot-opencode-json/opencode.jsonc"
-touch "${HOME}/OpenCode/dot-opencode-json/tui.jsonc"
+
+# Seed OpenCode's default config location (~/.config/opencode/) from the
+# canonical templates that live next to this script. Re-runs always
+# overwrite the host-side copies, so the templates at the script root are
+# the single source of truth. If a template is missing, silently skip and
+# let OpenCode create its own defaults on first start.
+for _config_name in opencode.jsonc tui.jsonc; do
+  _src="${SCRIPT_DIR}/${_config_name}"
+  if [ -f "$_src" ]; then
+    cp -f "$_src" "${HOME}/OpenCode/dot-config/opencode/${_config_name}"
+  fi
+done
+unset _config_name _src
 
 # ------------------------------------------------------------------
 # Git config bootstrap – ensure a .gitconfig exists for the container
