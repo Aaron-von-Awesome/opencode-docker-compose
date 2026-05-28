@@ -8,16 +8,15 @@ A local development environment for OpenCode, fully contained in a Docker contai
 
 ## First-time setup
 
-Clone the repo, then run the initializer from inside the `OpenCode-Refactor/` directory:
+Clone the repo, then run the initializer script located in the repository:
 
 ```bash
-cd OpenCode-Refactor
 ./opencode-init.sh
 ```
 
 `opencode-init.sh` does two things:
 
-1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `opencode-run.sh`, the two `.jsonc` templates, the `models/` overlay directory, and anything else in the repo root *except* `README.md`, anything matching `.git*`, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
+1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `opencode-run.sh`, the two `.jsonc` templates, the `models/` overlay directory, and anything else in the repo root _except_ `README.md`, anything matching `.git*`, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
 2. **Adds the `opencode` alias to `~/.bashrc`** (if not already present) so you can launch from any directory:
    ```bash
    alias opencode='${HOME}/OpenCode/opencode-run.sh'
@@ -56,7 +55,7 @@ echo "alias opencode='\${HOME}/OpenCode/opencode-run.sh'" >> ~/.bashrc
 source ~/.bashrc
 ```
 
-(Note the escaped `\${HOME}` — that keeps the variable as-is in the alias definition so it's expanded *at run time*, not when the alias is written.)
+(Note the escaped `\${HOME}` — that keeps the variable as-is in the alias definition so it's expanded _at run time_, not when the alias is written.)
 
 Once the alias is in place, every form of the launcher works the same way — arguments are passed through unchanged:
 
@@ -134,14 +133,14 @@ For cloud-mode usage, you'll want a different `opencode.jsonc` — one that decl
 
 ## Host-side layout (`${HOME}/OpenCode/...`)
 
-| Path                       | Maps to in container | Purpose                                                                                                                                              |
-| -------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Path                       | Maps to in container | Purpose                                                                                                                                                                                                      |
+| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `dot-config/`              | `~/.config/`         | Everything OpenCode reads from its XDG default location — skills, agents, commands, themes, plugins (`~/.config/opencode/*`), plus the seeded `opencode.jsonc` and `tui.jsonc` (see "Config seeding" below). |
-| `dot-local/`               | `~/.local/`          | DB, auth, sessions, prompt history, model selection                                                                                                  |
-| `dot-cache/`               | `~/.cache/`          | Download/build cache, agent binaries                                                                                                                 |
-| `dot-npm/`                 | `~/.npm/`            | Plugin/skill dependency cache                                                                                                                        |
-| `dot-ssh/`                 | `~/.ssh/`            | SSH keys (generated on first run)                                                                                                                    |
-| `dot-gitconfig/.gitconfig` | `~/.gitconfig`       | Git identity (prompted on first run)                                                                                                                 |
+| `dot-local/`               | `~/.local/`          | DB, auth, sessions, prompt history, model selection                                                                                                                                                          |
+| `dot-cache/`               | `~/.cache/`          | Download/build cache, agent binaries                                                                                                                                                                         |
+| `dot-npm/`                 | `~/.npm/`            | Plugin/skill dependency cache                                                                                                                                                                                |
+| `dot-ssh/`                 | `~/.ssh/`            | SSH keys (generated on first run)                                                                                                                                                                            |
+| `dot-gitconfig/.gitconfig` | `~/.gitconfig`       | Git identity (prompted on first run)                                                                                                                                                                         |
 
 ### Config seeding
 
