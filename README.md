@@ -29,7 +29,7 @@ Safe to re-run — overwrite prompts and the alias-presence check keep it idempo
 
 ```bash
 # Local model via Docker Model Runner:
-./opencode-run.sh --model gpt20 [/path/to/your/project]
+./opencode-run.sh --model qwable9b [/path/to/your/project]
 
 # Cloud / third-party provider configured in opencode.jsonc:
 ./opencode-run.sh [/path/to/your/project]
@@ -61,9 +61,9 @@ Once the alias is in place, every form of the launcher works the same way — ar
 
 ```bash
 opencode                                  # cloud mode, current directory as workspace
-opencode --model gpt20                    # local model, current directory
+opencode --model qwable9b                 # local model, current directory
 opencode /path/to/your/project            # cloud mode, given project as workspace
-opencode --model gpt120 /path/to/project  # local model, given project
+opencode --model gpt120b /path/to/project # local model, given project
 opencode --help                           # show usage and available overlays
 ```
 
@@ -78,9 +78,9 @@ Two modes:
 Only **one** local model is bound to the service per launch — Docker Model Runner has no documented way to cap concurrent loads, so we control it at the compose level by merging in exactly one overlay file at runtime.
 
 ```bash
-./opencode-run.sh --model gpt20   # ai/gpt-oss:20B-F16
-./opencode-run.sh --model gpt120  # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
-./opencode-run.sh --model gemma31 # ai/gemma4:31B
+./opencode-run.sh --model qwable9b    # huggingface.co/empero-ai/qwable-9b-claude-fable-5-gguf:BF16
+./opencode-run.sh --model gpt120b     # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
+./opencode-run.sh --model qwythos9bv2 # huggingface.co/empero-ai/qwythos-9b-v2-gguf:BF16
 ```
 
 Each shortname maps to the file `models/<shortname>.yaml`. To add a new model, drop a new overlay file in `models/` — no script edits needed. `./opencode-run.sh --help` lists what's available.
@@ -111,7 +111,7 @@ The base compose file has no model bindings, so Docker Model Runner is bypassed 
 - No "selecting the wrong model" failure mode: the picker only ever offers the bound model.
 - Adding a new local model = one overlay file. `opencode.jsonc` never changes.
 
-To add a local model, mirror an existing overlay (e.g. `models/gpt20.yaml`):
+To add a local model, mirror an existing overlay (e.g. `models/qwable9b.yaml`):
 
 ```yaml
 services:
@@ -144,7 +144,7 @@ For cloud-mode usage, you'll want a different `opencode.jsonc` — one that decl
 
 ### Config seeding
 
-`opencode.jsonc` and `tui.jsonc` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
+`opencode.jsonc.template` and `tui.jsonc` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so `opencode.jsonc.template` becomes `opencode.jsonc` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
 
 The script root is a **transient handoff slot**, not a permanent home for the config files:
 
@@ -164,4 +164,4 @@ Edit config files on the host; changes take effect on the next container start. 
 - `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay.
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
 - `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
-- `opencode.jsonc`, `tui.jsonc` — Canonical config templates at the script root. Copied (overwriting) into `${HOME}/OpenCode/dot-config/opencode/` on every launch, which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
+- `opencode.jsonc.template`, `tui.jsonc` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.

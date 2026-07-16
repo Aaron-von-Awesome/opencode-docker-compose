@@ -239,13 +239,15 @@ mkdir -p "${HOME}/OpenCode/dot-gitconfig"
 # To push an updated config, re-run `opencode-init.sh` to re-copy the
 # canonical templates from the cloned repo into the script root, then
 # `opencode-run.sh` will move them into place on the next launch.
-for _config_name in opencode.jsonc tui.jsonc; do
-  _src="${SCRIPT_DIR}/${_config_name}"
+for _pair in "opencode.jsonc.template:opencode.jsonc" "tui.jsonc:tui.jsonc"; do
+  _src_name="${_pair%%:*}"
+  _dst_name="${_pair##*:}"
+  _src="${SCRIPT_DIR}/${_src_name}"
   if [ -f "$_src" ]; then
-    mv -f "$_src" "${HOME}/OpenCode/dot-config/opencode/${_config_name}"
+    mv -f "$_src" "${HOME}/OpenCode/dot-config/opencode/${_dst_name}"
   fi
 done
-unset _config_name _src
+unset _pair _src_name _dst_name _src
 
 # ------------------------------------------------------------------
 # Git config bootstrap – ensure a .gitconfig exists for the container
