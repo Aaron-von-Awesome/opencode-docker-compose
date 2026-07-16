@@ -5,8 +5,8 @@ services:
         endpoint_var: ACTIVE_MODEL_URL
         model_var: ACTIVE_MODEL_NAME
     environment:
-      ACTIVE_MODEL_DISPLAY_NAME: "GPT OSS 20B"
+      ACTIVE_MODEL_DISPLAY_NAME: "Qwable 9B"
 
 models:
   llm_active:
-    model: ai/gpt-oss:20B-F16
+    model: huggingface.co/empero-ai/qwable-9b-claude-fable-5-gguf:BF16

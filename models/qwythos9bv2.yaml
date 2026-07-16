@@ -5,8 +5,8 @@ services:
         endpoint_var: ACTIVE_MODEL_URL
         model_var: ACTIVE_MODEL_NAME
     environment:
-      ACTIVE_MODEL_DISPLAY_NAME: "Gemma 4 31B"
+      ACTIVE_MODEL_DISPLAY_NAME: "Qwythos 9B v2"
 
 models:
   llm_active:
-    model: ai/gemma4:31B
+    model: huggingface.co/empero-ai/qwythos-9b-v2-gguf:BF16
