@@ -52,7 +52,6 @@ services:
       start_period: 60s
     networks:
       opencode-net:
-        ipv4_address: "192.168.177.10"
 
 # Model bindings are intentionally NOT defined here. Each model lives in its
 # own overlay file under `models/` and is selected at runtime via

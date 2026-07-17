@@ -91,18 +91,9 @@ read_overlay_model_id() {
   }' "$1"
 }
 
-# Normalize a model identifier to the canonical form reported by
-# `docker model ps` under the MODEL column:
-#   - strip a leading "ai/" prefix (the default Docker Model Runner
-#     registry, which is omitted in CLI output)
-#   - lowercase the rest
-# Examples:
-#   "ai/gpt-oss:20B-F16"                            -> "gpt-oss:20b-f16"
-#   "ai/gemma4:31B"                                 -> "gemma4:31b"
-#   "huggingface.co/unsloth/gpt-oss-120b-gguf:F16"  -> "huggingface.co/unsloth/gpt-oss-120b-gguf:f16"
-# Non-default registries (containing a "." in the first path segment,
-# e.g. huggingface.co/...) are kept intact — only the implicit "ai/"
-# registry is stripped by Docker Model Runner.
+# Canonical form used by `docker model ps`: strip the "ai/" registry
+# prefix (implicit default that Docker Model Runner omits in output),
+# then lowercase the rest.
 normalize_model_id() {
   local id="${1#ai/}"
   printf '%s\n' "${id,,}"
@@ -145,7 +136,6 @@ resolve_to_list_name() {
   printf '%s\n' "${match:-$canonical}"
 }
 
-MODEL_OVERLAY=""
 REQUESTED_MODEL_ID=""
 
 if [[ -n "$MODEL_PROFILE" ]]; then
