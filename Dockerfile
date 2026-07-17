@@ -1,14 +1,14 @@
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
-ARG NODE_MAJOR_VERSION=24
-ARG UV_VERSION=0.11.8
+ARG NODE_MAJOR_VERSION=26
+ARG UV_VERSION=0.11.29
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Locale defaults. Generated in the apt RUN below.
 ENV LANG=en_US.UTF-8 \
-    LANGUAGE=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8
+  LANGUAGE=en_US.UTF-8 \
+  LC_ALL=en_US.UTF-8
 
 # Install Node.js and development tools
 RUN apt-get update && \
@@ -45,7 +45,7 @@ RUN curl -L https://releases.astral.sh/github/uv/releases/download/${UV_VERSION}
 # UID and GID are remapped to PUID/PGID by entrypoint.sh at runtime, so
 # the initial GID value is irrelevant).
 #
-# Also remove the default `ubuntu` user that ships with ubuntu:24.04 — we
+# Also remove the default `ubuntu` user that ships with the base image — we
 # never use it, and its UID 1000 collides with the most common host PUID,
 # which would otherwise force the `usermod -o` remap into duplicate-UID
 # territory. Removing it tightens containment.
