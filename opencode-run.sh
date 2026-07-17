@@ -233,11 +233,16 @@ for _pair in "opencode.jsonc.template:opencode.jsonc" "tui.jsonc.template:tui.js
   _src_name="${_pair%%:*}"
   _dst_name="${_pair##*:}"
   _src="${SCRIPT_DIR}/${_src_name}"
+  _dst="${HOME}/OpenCode/dot-config/opencode/${_dst_name}"
   if [ -f "$_src" ]; then
-    mv -f "$_src" "${HOME}/OpenCode/dot-config/opencode/${_dst_name}"
+    if [ -f "$_dst" ]; then
+      _ts="$(date +%Y%m%d-%H%M%S)"
+      cp "$_dst" "${HOME}/OpenCode/dot-config/opencode/${_ts}_${_dst_name}.backup"
+    fi
+    mv -f "$_src" "$_dst"
   fi
 done
-unset _pair _src_name _dst_name _src
+unset _pair _src_name _dst_name _src _dst _ts
 
 # ------------------------------------------------------------------
 # Git config bootstrap – ensure a .gitconfig exists for the container
