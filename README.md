@@ -103,6 +103,12 @@ Omit `--model` entirely:
 
 The base compose file has no model bindings, so Docker Model Runner is bypassed and OpenCode uses whatever provider you've configured in `opencode.jsonc`. Provider setup (API keys, model identifiers, etc.) is OpenCode's concern — see <https://opencode.ai/docs/models/>.
 
+> **Important:** The default `opencode.jsonc` template ships with a
+> `"provider"` block pre-configured for local-model mode. If you use
+> `opencode` **without** `--model` (cloud mode), remove the entire
+> `"provider": { … }` section. See
+> <https://opencode.ai/docs/models/> for provider configuration.
+
 ### How it interacts with `opencode.jsonc` (local-model mode)
 
 `opencode.jsonc` defines a single generic provider named `active` that reads three env vars: `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`, and `ACTIVE_MODEL_DISPLAY_NAME`. Every local-model overlay populates those three vars. The result:
@@ -129,7 +135,7 @@ models:
     # runtime_flags: [...]  # optional per-model sampler/inference flags
 ```
 
-For cloud-mode usage, you'll want a different `opencode.jsonc` — one that declares your cloud provider(s) instead of (or in addition to) the `active` block. The active block fails gracefully in cloud mode (its env vars are empty), but listing it in `enabled_providers` will surface an unusable entry in the picker, so you'll likely want to drop or swap that block when you're using a cloud provider.
+For cloud-mode usage, remove the `"provider"` block from the default `opencode.jsonc` — see the warning in [Cloud / third-party provider](#cloud--third-party-provider) above.
 
 ## Host-side layout (`${HOME}/OpenCode/...`)
 
@@ -148,11 +154,11 @@ For cloud-mode usage, you'll want a different `opencode.jsonc` — one that decl
 
 The script root is a **transient handoff slot**, not a permanent home for the config files:
 
-- First launch after `opencode-init.sh`: the two `.jsonc` files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/` (overwriting whatever was there).
+- First launch after `opencode-init.sh`: the two `.jsonc` files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/`. If `opencode.jsonc` or `tui.jsonc` already exist at the destination, they are first copied to a timestamped backup (e.g. `20260716-143022_opencode.jsonc.backup`) before being overwritten.
 - Subsequent launches: the script root is empty → the move step is silently skipped, and OpenCode continues reading the previously-seeded files from `dot-config/opencode/`.
 - If you never run `opencode-init.sh` (or you delete the source files), the move step is skipped on every launch and OpenCode falls back to whatever defaults it writes itself.
 
-**To push updated config:** edit the canonical templates in your cloned repo, re-run `opencode-init.sh` (which re-copies them into the script root, prompting on overwrite), then launch with `opencode` — the move step picks them up.
+**To push updated config:** edit the canonical templates in your cloned repo, re-run `opencode-init.sh` (which re-copies them into the script root, prompting on overwrite), then launch with `opencode` — the move step picks them up. Any existing config at the destination is backed up automatically.
 
 Edit config files on the host; changes take effect on the next container start. Auth, sessions, and DB persist across image rebuilds.
 
