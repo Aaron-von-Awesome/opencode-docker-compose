@@ -24,6 +24,7 @@ RUN apt-get update && \
   openssh-client \
   git \
   procps \
+  direnv \
   sudo \
   jq \
   fzf \
