@@ -23,6 +23,7 @@ RUN apt-get update && \
   nodejs \
   openssh-client \
   git \
+  git-lfs \
   procps \
   direnv \
   sudo \
