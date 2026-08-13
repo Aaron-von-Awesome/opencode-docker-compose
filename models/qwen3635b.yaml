@@ -5,8 +5,10 @@ services:
         endpoint_var: ACTIVE_MODEL_URL
         model_var: ACTIVE_MODEL_NAME
     environment:
-      ACTIVE_MODEL_DISPLAY_NAME: "Qwable 9B"
+      ACTIVE_MODEL_DISPLAY_NAME: "Qwen 3.6 35B"
 
 models:
   llm_active:
-    model: huggingface.co/empero-ai/qwable-9b-claude-fable-5-gguf:BF16
+    model: ai/qwen3.6:35b-a3b-mtp-q8_0
+    # model: ai/qwen3.6:35b-a3b-bf16
+    # model: ai/qwen3.6:35b-a3b-mtp-bf16

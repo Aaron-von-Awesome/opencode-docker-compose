@@ -29,7 +29,7 @@ Safe to re-run — overwrite prompts and the alias-presence check keep it idempo
 
 ```bash
 # Local model via Docker Model Runner:
-./opencode-run.sh --model qwable9b [/path/to/your/project]
+./opencode-run.sh --model gpt120b [/path/to/your/project]
 
 # Cloud / third-party provider configured in opencode.jsonc:
 ./opencode-run.sh [/path/to/your/project]
@@ -61,7 +61,7 @@ Once the alias is in place, every form of the launcher works the same way — ar
 
 ```bash
 opencode                                  # cloud mode, current directory as workspace
-opencode --model qwable9b                 # local model, current directory
+opencode --model gpt120b                  # local model, current directory
 opencode /path/to/your/project            # cloud mode, given project as workspace
 opencode --model gpt120b /path/to/project # local model, given project
 opencode --help                           # show usage and available overlays
@@ -78,9 +78,8 @@ Two modes:
 Only **one** local model is bound to the service per launch — Docker Model Runner has no documented way to cap concurrent loads, so we control it at the compose level by merging in exactly one overlay file at runtime.
 
 ```bash
-./opencode-run.sh --model qwable9b    # huggingface.co/empero-ai/qwable-9b-claude-fable-5-gguf:BF16
-./opencode-run.sh --model gpt120b     # huggingface.co/unsloth/gpt-oss-120b-gguf:F16
-./opencode-run.sh --model qwythos9bv2 # huggingface.co/empero-ai/qwythos-9b-v2-gguf:BF16
+./opencode-run.sh --model gpt120b     # ai/gpt-oss:120b-f16
+./opencode-run.sh --model qwen3635b   # ai/qwen3.6:35b-a3b-mtp-q8_0
 ```
 
 Each shortname maps to the file `models/<shortname>.yaml`. To add a new model, drop a new overlay file in `models/` — no script edits needed. `./opencode-run.sh --help` lists what's available.
@@ -117,7 +116,7 @@ The base compose file has no model bindings, so Docker Model Runner is bypassed 
 - No "selecting the wrong model" failure mode: the picker only ever offers the bound model.
 - Adding a new local model = one overlay file. `opencode.jsonc` never changes.
 
-To add a local model, mirror an existing overlay (e.g. `models/qwable9b.yaml`):
+To add a local model, mirror an existing overlay (e.g. `models/gpt120b.yaml`):
 
 ```yaml
 services:
