@@ -30,6 +30,7 @@ RUN apt-get update && \
   jq \
   fzf \
   ripgrep \
+  sqlite3 \
   gosu \
   python3 \
   python-is-python3 && \
