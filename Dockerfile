@@ -1,7 +1,7 @@
 FROM ubuntu:26.04
 
 ARG NODE_MAJOR_VERSION=26
-ARG UV_VERSION=0.12.1
+ARG UV_VERSION=0.12.5
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
