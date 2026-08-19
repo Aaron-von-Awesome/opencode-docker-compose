@@ -14,6 +14,46 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIRECTORY_ID="$(echo -n "${SCRIPT_DIR}+${HOSTNAME}" | sha512sum | cut -c1-12)"
 
 # ------------------------------------------------------------------
+# Validation function for extra-compose.yaml
+# ------------------------------------------------------------------
+# Validates that extra-compose.yaml only modifies the "opencode" service
+# and does not define additional services. This ensures the file is used
+# for OpenCode service customization (networks, volumes, environment, etc.)
+# rather than adding new services to the compose project.
+validate_extra_compose() {
+  local file="$1"
+  # Extract the services section and check for non-opencode services
+  awk '
+    BEGIN { in_services = 0; found_services = 0; service_indent = 0 }
+    /^services:/ { in_services = 1; found_services = 1; next }
+    in_services && /^[^[:space:]]/ { in_services = 0 }
+    in_services && /^[[:space:]]+[a-zA-Z_-]+:/ {
+      # Calculate indentation level
+      indent = 0
+      match($0, /^[[:space:]]*/)
+      indent = RLENGTH
+      # Only consider service definitions at the first level under services:
+      # (indentation should be 2 spaces for YAML)
+      if (indent == 2) {
+        service_name = $1
+        gsub(/:/, "", service_name)
+        gsub(/^[[:space:]]+/, "", service_name)
+        if (service_name != "opencode") {
+          print "Error: extra-compose.yaml defines additional service: \"" service_name "\". Only \"opencode\" service modifications are allowed." > "/dev/stderr"
+          exit 1
+        }
+      }
+    }
+    END {
+      if (!found_services) {
+        print "Warning: extra-compose.yaml does not contain a services section." > "/dev/stderr"
+      }
+    }
+  ' "$file"
+  return $?
+}
+
+# ------------------------------------------------------------------
 # Argument parsing
 # ------------------------------------------------------------------
 MODEL_PROFILE="" # empty => cloud/third-party mode (no overlay)
@@ -44,6 +84,25 @@ Usage: $(basename "$0") [--model SHORTNAME] [PATH]
 $(list_model_overlays "                            ")
   --help, -h              Show this help and exit.
   PATH                    Project directory (default: current directory).
+
+Workspace Customization:
+  If the workspace directory contains an extra-compose.yaml file, it is
+  merged into the compose invocation. This enables per-project OpenCode
+  service customization (e.g., joining external Docker networks, adding
+  volumes, environment variables, etc.).
+
+  Validation: The extra-compose.yaml must NOT define additional services.
+  Only modifications to the "opencode" service are allowed.
+
+  Example extra-compose.yaml (joining external network):
+    services:
+      opencode:
+        networks:
+          - kiwifs-net
+
+    networks:
+      kiwifs-net:
+        external: true
 EOF
 }
 
@@ -308,6 +367,24 @@ else
   echo "SSH key already exists at $KEY_PATH – skipping generation."
 fi
 
+# Workspace compose file detection. If the workspace directory contains an
+# extra-compose.yaml file, it is merged into the compose invocation. This
+# enables per-project OpenCode service customization (e.g., joining external
+# Docker networks, adding volumes, environment variables, etc.).
+#
+# Validation: The extra-compose.yaml must NOT define additional services.
+# Only modifications to the "opencode" service are allowed.
+WORKSPACE_COMPOSE="${WORKSPACE_DIR}/extra-compose.yaml"
+EXTRA_COMPOSE=""
+if [[ -f "$WORKSPACE_COMPOSE" ]]; then
+  # Validate the extra-compose.yaml file
+  if ! validate_extra_compose "$WORKSPACE_COMPOSE"; then
+    echo "Error: extra-compose.yaml validation failed. Exiting." >&2
+    exit 1
+  fi
+  EXTRA_COMPOSE="$WORKSPACE_COMPOSE"
+fi
+
 echo "Starting OpenCode in container..."
 echo "  Workspace: ${WORKSPACE_DIR}"
 echo "  Config:    ${HOME}/OpenCode/dot-config/"
@@ -319,6 +396,9 @@ fi
 echo "  User:      $(id -un) (PUID=${PUID}, PGID=${PGID})"
 echo "---------------------------------------------------"
 echo "  Script Directory:    ${SCRIPT_DIR}"
+if [[ -n "$EXTRA_COMPOSE" ]]; then
+  echo "  Extra Compose: ${EXTRA_COMPOSE}"
+fi
 echo "---------------------------------------------------"
 
 export WORKSPACE_DIR
@@ -334,6 +414,11 @@ cd "${SCRIPT_DIR}"
 COMPOSE_ARGS=(-f docker-compose.yaml)
 if [[ -n "$MODEL_PROFILE" ]]; then
   COMPOSE_ARGS+=(-f "models/${MODEL_PROFILE}.yaml")
+fi
+
+# Add workspace compose file to compose args if it exists
+if [[ -n "$EXTRA_COMPOSE" ]]; then
+  COMPOSE_ARGS+=(-f "$EXTRA_COMPOSE")
 fi
 
 docker compose "${COMPOSE_ARGS[@]}" run --rm opencode
