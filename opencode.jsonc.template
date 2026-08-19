@@ -10,6 +10,8 @@
   // ACTIVE_MODEL_URL, ACTIVE_MODEL_NAME, and ACTIVE_MODEL_DISPLAY_NAME so
   // this single provider block adapts to whichever model is bound.
   "enabled_providers": ["active"],
+  // Uncomment the line below to disable all of the OpenCode "free" models that use your data for training.
+  // "disabled_providers": ["opencode"],
   // Default Agent
   "default_agent": "plan",
   // Automatically compact to avoid exceeding the context limit
