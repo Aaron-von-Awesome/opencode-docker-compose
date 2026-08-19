@@ -21,19 +21,20 @@ RUN apt-get update && \
   curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR_VERSION}.x | bash - && \
   apt-get install -y --no-install-recommends \
   nodejs \
-  openssh-client \
+  direnv \
+  fzf \
   git \
   git-lfs \
-  procps \
-  direnv \
-  sudo \
-  jq \
-  fzf \
-  ripgrep \
-  sqlite3 \
   gosu \
+  iputils-ping \
+  jq \
+  openssh-client \
+  procps \
   python3 \
   python-is-python3 && \
+  ripgrep \
+  sqlite3 \
+  sudo \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager (version 0.11.6)
