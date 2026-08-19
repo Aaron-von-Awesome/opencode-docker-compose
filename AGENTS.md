@@ -14,7 +14,10 @@ pre-flight, bootstraps host-side dirs, seeds config, then `docker compose run`.
 `docker-compose.yaml` defines the base service with NO model bindings; each
 `models/<shortname>.yaml` overlay merges in exactly one `llm_active` binding.
 `entrypoint.sh` remaps the in-container `abc` user's UID/GID to the host's
-`PUID`/`PGID` at runtime (no rebuild needed for different host users).
+`PUID`/`PGID` at runtime (no rebuild needed for different host users). An
+optional `extra-compose.yaml` in the workspace directory can customize the
+OpenCode service (networks, volumes, environment) — validated to allow only
+`opencode` service modifications.
 
 ## Commands
 
@@ -25,6 +28,9 @@ pre-flight, bootstraps host-side dirs, seeds config, then `docker compose run`.
 - `./opencode-run.sh --help` — lists available model overlays.
 - Inside the repo there is nothing to build, test, or lint. Edit scripts and
   re-launch to verify.
+- If the workspace contains `extra-compose.yaml`, it is merged into the compose
+  invocation for per-project OpenCode service customization. Validated to ensure
+  only the `opencode` service is modified (no additional services).
 
 ## Git workflow
 
@@ -72,6 +78,13 @@ branches, PRs, or tags in current history; no CI to satisfy.
 - **Healthcheck in `docker-compose.yaml`** is `pgrep -x opencode` with a 60s
   `start_period` to cover first-run DB migration. It is independent of the
   DMR backend container's own healthcheck (which we cannot configure).
+- **`extra-compose.yaml` validation.** If a workspace directory contains an
+  `extra-compose.yaml` file, it is merged into the compose invocation for
+  per-project customization. The file is validated to ensure it only modifies
+  the `opencode` service — defining additional services (e.g., `kiwifs`,
+  `database`) is rejected with an error. This prevents accidentally adding
+  new services to the compose project while allowing network, volume, and
+  environment customizations.
 
 ## Repo layout
 

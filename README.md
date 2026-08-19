@@ -136,6 +136,111 @@ models:
 
 For cloud-mode usage, remove the `"provider"` block from the default `opencode.jsonc` — see the warning in [Cloud / third-party provider](#cloud--third-party-provider) above.
 
+## Workspace customization
+
+You can customize the OpenCode service for specific projects by placing an `extra-compose.yaml` file in your workspace directory. This file is automatically detected and merged into the compose invocation, enabling per-project customizations like:
+
+- Joining external Docker networks (e.g., a KiwiFS network)
+- Adding custom volumes
+- Setting environment variables
+- Modifying the working directory
+
+### How it works
+
+1. Place an `extra-compose.yaml` file in your project directory
+2. Run OpenCode with that directory as the workspace: `./opencode-run.sh /path/to/your/project`
+3. The script detects the file, validates it, and merges it with the base configuration
+
+### Validation
+
+The `extra-compose.yaml` file is validated to ensure it only modifies the `opencode` service. This prevents accidentally adding new services to the compose project. The validation checks:
+
+- Only the `opencode` service is defined under `services:`
+- Additional services (e.g., `kiwifs`, `database`) are **not allowed**
+- Any modifications to the `opencode` service are permitted (networks, volumes, environment, etc.)
+
+### Examples
+
+#### Joining an external network (KiwiFS scenario)
+
+```yaml
+services:
+  opencode:
+    networks:
+      - kiwifs-net
+
+networks:
+  kiwifs-net:
+    external: true
+```
+
+#### Multiple external networks
+
+```yaml
+services:
+  opencode:
+    networks:
+      - kiwifs-net
+      - database-net
+
+networks:
+  kiwifs-net:
+    external: true
+  database-net:
+    external: true
+```
+
+#### Adding volumes and environment variables
+
+```yaml
+services:
+  opencode:
+    volumes:
+      - ./data:/home/abc/workspace/data
+      - ./config:/home/abc/workspace/config
+    environment:
+      CUSTOM_VAR: "value"
+      API_KEY: "your-api-key"
+    working_dir: "/home/abc/workspace/project"
+
+networks:
+  opencode-net:
+    external: true
+```
+
+#### Combining network and volume customizations
+
+```yaml
+services:
+  opencode:
+    networks:
+      - kiwifs-net
+    volumes:
+      - ./gtd-kiwi-fs:/home/abc/workspace/gtd-kiwi-fs
+    environment:
+      KIWIFS_URL: "http://kiwifs:3333"
+
+networks:
+  kiwifs-net:
+    external: true
+```
+
+### Output
+
+When an `extra-compose.yaml` file is detected, the script displays its path in the startup output:
+
+```
+Starting OpenCode in container...
+  Workspace: /home/abc/KiwiFS-Implementation/PoC
+  Config:    /home/abc/OpenCode/dot-config/
+  Model:     (none — cloud/third-party mode; see opencode.jsonc)
+  User:      abc (PUID=1000, PGID=1000)
+---------------------------------------------------
+  Script Directory:    /home/abc/opencode-docker-compose
+  Extra Compose: /home/abc/KiwiFS-Implementation/PoC/extra-compose.yaml
+---------------------------------------------------
+```
+
 ## Host-side layout (`${HOME}/OpenCode/...`)
 
 | Path                       | Maps to in container | Purpose                                                                                                                                                                                                      |
@@ -166,7 +271,7 @@ Edit config files on the host; changes take effect on the next container start. 
 - `opencode-init.sh` — Host-side first-time-setup script. Copies the project tree to `${HOME}/OpenCode/` (excluding `README.md`, `.git*`, and itself), prompts before overwriting existing files, and installs the `opencode` alias in `~/.bashrc` if not already present. Idempotent; safe to re-run.
 - `Dockerfile` — Ubuntu 26.04 base. Installs Node + uv + OpenCode toolchain; copies the OpenCode binary to `/usr/local/bin/` so it survives any bind mount under `/home/abc`. Hardening borrowed from linuxserver.io: `userdel ubuntu` removes the default UID-1000 user that ships with 26.04 (eliminates a PUID collision), `locales` is installed and `en_US.UTF-8` generated to prevent TUI/encoding glitches, and the `abc` user is created via `useradd -u 911 -U` (matching group auto-created; GID is remapped at runtime).
 - `entrypoint.sh` — Remaps `abc` UID/GID to host `PUID`/`PGID`, then drops privileges via `gosu`.
-- `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay.
+- `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay. Detects and merges `extra-compose.yaml` from workspace directory for per-project OpenCode service customization (validated to allow only `opencode` service modifications).
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
 - `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
 - `opencode.jsonc.template`, `tui.jsonc.template` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc` and `tui.jsonc`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
