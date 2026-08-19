@@ -31,10 +31,10 @@ RUN apt-get update && \
   openssh-client \
   procps \
   python3 \
-  python-is-python3 && \
+  python-is-python3 \
   ripgrep \
   sqlite3 \
-  sudo \
+  sudo && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager (version 0.11.6)
