@@ -30,4 +30,9 @@
       },
     },
   },
+  // "plugin": [
+  //   "@dietrichgebert/ponytail",
+  //   "opencode-skill-creator",
+  //   "superpowers@git+https://github.com/obra/superpowers.git",
+  // ],
 }
