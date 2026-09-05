@@ -19,6 +19,7 @@ services:
     tty: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "primeradiant.com:127.0.0.1" # Disable Super Powers Skill beacon
     volumes:
       - "${WORKSPACE_DIR:-.}:/home/abc/${OC_PROJECT_NAME:-workspace}"
       - "${HOME}/OpenCode/dot-config:/home/abc/.config"
@@ -38,6 +39,7 @@ services:
       TERM: "xterm-256color"
       # Custom Plugin Settings
       PONYTAIL_DEFAULT_MODE: "off"
+      SUPERPOWERS_DISABLE_TELEMETRY: "1"
     # Healthcheck for the OpenCode service itself (independent of the
     # Docker Model Runner backend container, which has its own healthcheck
     # we cannot configure from here). We check that the `opencode` process
