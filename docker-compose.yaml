@@ -28,21 +28,21 @@ services:
       - "${HOME}/OpenCode/dot-npm:/home/abc/.npm"
       - "${HOME}/OpenCode/dot-ssh/:/home/abc/.ssh/"
       - "${HOME}/OpenCode/dot-gitconfig/.gitconfig:/home/abc/.gitconfig"
+      # - "${HOME}/OpenCode/development/:/home/abc/development/"  # optional: additional global folder
+      # - "${HOME}/OpenCode/container-tmp/:/tmp/"  # optional: add tmp/ as persistent storage
     working_dir: "/home/abc/${OC_PROJECT_NAME:-workspace}"
     environment:
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       TZ: "America/New_York"
-      OPENCODE_EXPERIMENTAL_LSP_TOOL: true
-      OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT: true
       OC_PROJECT_NAME: "${OC_PROJECT_NAME}"
       TERM: "xterm-256color"
-      # Custom Plugin Settings
-      PONYTAIL_DEFAULT_MODE: "off"
-      SUPERPOWERS_DISABLE_TELEMETRY: "1"
       # OPENCODE_EXPERIMENTAL_LSP_TOOL removed — inert in V2 (no LSP runtime yet).
       # OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT removed — use config instead:
       #   { "terminal": { "copy": "manual" } } in cli.json
+      # Custom Plugin Settings
+      PONYTAIL_DEFAULT_MODE: "off"
+      SUPERPOWERS_DISABLE_TELEMETRY: "1"
     # Healthcheck for the OpenCode service itself (independent of the
     # Docker Model Runner backend container, which has its own healthcheck
     # we cannot configure from here). We check that the `opencode` process
