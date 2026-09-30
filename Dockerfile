@@ -1,7 +1,7 @@
 FROM ubuntu:26.04
 
 ARG NODE_MAJOR_VERSION=26
-ARG UV_VERSION=0.12.5
+ARG UV_VERSION=0.12.21
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -37,7 +37,7 @@ RUN apt-get update && \
   sudo && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install uv package manager (version 0.11.6)
+# Install uv package manager (version 0.12.21)
 RUN curl -L https://releases.astral.sh/github/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz -o uv.tar.gz \
   && tar -xzf uv.tar.gz -C /usr/local/bin --strip-components=1 uv-x86_64-unknown-linux-gnu/ \
   && chmod +x /usr/local/bin/uv \
