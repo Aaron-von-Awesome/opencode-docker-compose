@@ -16,7 +16,7 @@ Clone the repo, then run the initializer script located in the repository:
 
 `opencode-init.sh` does two things:
 
-1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `opencode-run.sh`, the two `.jsonc` templates, the `models/` overlay directory, and anything else in the repo root _except_ `README.md`, anything matching `.git*`, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
+1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `opencode-run.sh`, the three `.jsonc` templates, the `models/` overlay directory, and anything else in the repo root _except_ `README.md`, anything matching `.git*`, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
 2. **Adds the `opencode` alias to `~/.bashrc`** (if not already present) so you can launch from any directory:
    ```bash
    alias opencode='${HOME}/OpenCode/opencode-run.sh'
@@ -274,4 +274,4 @@ Edit config files on the host; changes take effect on the next container start. 
 - `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay. Detects and merges `extra-compose.yaml` from workspace directory for per-project OpenCode service customization (validated to allow only `opencode` service modifications).
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
 - `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
-- `opencode.jsonc.template`, `tui.jsonc.template` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc` and `tui.jsonc`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
+- `opencode.jsonc.template`, `tui.jsonc.template`, `cli.jsonc.template` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc`, `tui.jsonc`, and `cli.json`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
