@@ -275,3 +275,19 @@ Edit config files on the host; changes take effect on the next container start. 
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
 - `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
 - `opencode.jsonc.template`, `tui.jsonc.template`, `cli.jsonc.template` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc`, `tui.jsonc`, and `cli.json`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
+
+## Troubleshooting: "Background service failed to start"
+
+**Symptom:** `opencode-run.sh` exits with `Error: Background service failed to start`. `opencode --standalone` fails the same way.
+
+**Cause:** On startup, OpenCode 2.0.20 runs database migration `20260812213948_worktree`. It fails with `FOREIGN KEY constraint failed` because the persisted DB has orphaned `project_directory` rows, so the server exits on every launch. The log (`~/OpenCode/dot-local/share/opencode/log/opencode.log`) shows `database migration failed`.
+
+**Fix:** `cd` into the data directory, back up the DB, delete the orphaned rows, then relaunch:
+
+```bash
+cd ~/OpenCode/dot-local/share/opencode/
+cp opencode.db opencode.db.bak
+sqlite3 opencode.db "DELETE FROM project_directory WHERE project_id NOT IN (SELECT id FROM project);"
+```
+
+If that doesn't work, move `opencode.db` aside so OpenCode creates a fresh one. You lose existing sessions.
