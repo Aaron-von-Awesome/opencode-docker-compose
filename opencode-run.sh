@@ -5,7 +5,7 @@
 # merged in and OpenCode runs against Docker Model Runner.
 # If --model is omitted, OpenCode runs WITHOUT a local model bound — use
 # this when you've configured a cloud/third-party provider in
-# opencode.jsonc (see https://opencode.ai/docs/models/).
+# opencode.jsonc (see https://opencode.ai/v2/docs/models/).
 # Run with --help for the list of available local-model shortnames.
 
 set -euo pipefail
@@ -79,7 +79,7 @@ Usage: $(basename "$0") [--model SHORTNAME] [PATH]
                           Runner. If omitted, OpenCode runs without a
                           local model and you should configure a cloud /
                           third-party provider in opencode.jsonc
-                          (https://opencode.ai/docs/models/).
+                          (https://opencode.ai/v2/docs/models/).
                           Available local overlays:
 $(list_model_overlays "                            ")
   --help, -h              Show this help and exit.

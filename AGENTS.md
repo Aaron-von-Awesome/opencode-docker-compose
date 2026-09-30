@@ -78,6 +78,11 @@ branches, PRs, or tags in current history; no CI to satisfy.
 - **Healthcheck in `docker-compose.yaml`** is `pgrep -x opencode` with a 60s
   `start_period` to cover first-run DB migration. It is independent of the
   DMR backend container's own healthcheck (which we cannot configure).
+- **Experimental env vars removed for V2.** `OPENCODE_EXPERIMENTAL_LSP_TOOL`
+  was inert in V2 (no LSP runtime yet) and
+  `OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT` is superseded by
+  `terminal.copy: "manual"` in `cli.json`. Both were removed from
+  `docker-compose.yaml`.
 - **`extra-compose.yaml` validation.** If a workspace directory contains an
   `extra-compose.yaml` file, it is merged into the compose invocation for
   per-project customization. The file is validated to ensure it only modifies

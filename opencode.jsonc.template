@@ -14,8 +14,21 @@
   // "disabled_providers": ["opencode"],
   // Default Agent
   "default_agent": "plan",
+  // Small model for lightweight tasks like title generation. Uses the
+  // active model by default; point to a cheaper model if available.
+  // "small_model": "{env:ACTIVE_MODEL_NAME}",
+  // Maximum subagent nesting depth. 1 = primary agents can launch
+  // subagents but subagents cannot. 0 = no subagents.
+  "subagent_depth": 1,
+  // Enable snapshot tracking for undo/revert of file changes.
+  "snapshot": true,
   // Automatically compact to avoid exceeding the context limit
-  "compaction": { "auto": true, "prune": true },
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    // "tail_turns": 3,
+    // "preserve_recent_tokens": 10000,
+  },
   "provider": {
     "active": {
       "npm": "@ai-sdk/openai-compatible",

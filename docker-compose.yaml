@@ -40,6 +40,9 @@ services:
       # Custom Plugin Settings
       PONYTAIL_DEFAULT_MODE: "off"
       SUPERPOWERS_DISABLE_TELEMETRY: "1"
+      # OPENCODE_EXPERIMENTAL_LSP_TOOL removed — inert in V2 (no LSP runtime yet).
+      # OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT removed — use config instead:
+      #   { "terminal": { "copy": "manual" } } in cli.json
     # Healthcheck for the OpenCode service itself (independent of the
     # Docker Model Runner backend container, which has its own healthcheck
     # we cannot configure from here). We check that the `opencode` process

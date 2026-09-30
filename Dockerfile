@@ -69,7 +69,7 @@ RUN userdel -r ubuntu 2>/dev/null || true && \
 # Docker auto-creates the path (root-owned, mode 755) at mount time, which
 # `abc` can traverse, and entrypoint.sh chowns the mount contents at
 # runtime once PUID/PGID are remapped.
-RUN curl -fsSL https://opencode.ai/install | bash && \
+RUN curl -fsSL https://opencode.ai/v2/install | bash && \
   install -m 0755 /root/.opencode/bin/opencode /usr/local/bin/opencode && \
   rm -rf /root/.opencode
 

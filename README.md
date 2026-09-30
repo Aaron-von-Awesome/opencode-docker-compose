@@ -1,6 +1,6 @@
-# OpenCode + Docker Compose + Docker Model Runner
+# OpenCode V2 + Docker Compose + Docker Model Runner
 
-A local development environment for OpenCode, fully contained in a Docker container. Provides a linuxserver.io-style `abc` user with runtime UID/GID remapping, host-side persistent config and state, and a single-command launch.
+A local development environment for OpenCode V2, fully contained in a Docker container. Provides a linuxserver.io-style `abc` user with runtime UID/GID remapping, host-side persistent config and state, and a single-command launch.
 
 ## Prerequisites
 
@@ -35,7 +35,7 @@ Safe to re-run — overwrite prompts and the alias-presence check keep it idempo
 ./opencode-run.sh [/path/to/your/project]
 ```
 
-If no path is given, the current directory is used. If no `--model` is given, OpenCode launches without binding any local model — use this when your `opencode.jsonc` is configured for a cloud / third-party provider (see <https://opencode.ai/docs/models/>).
+If no path is given, the current directory is used. If no `--model` is given, OpenCode launches without binding any local model — use this when your `opencode.jsonc` is configured for a cloud / third-party provider (see <https://opencode.ai/v2/docs/models/>).
 
 The script:
 
@@ -106,7 +106,7 @@ The base compose file has no model bindings, so Docker Model Runner is bypassed 
 > `"provider"` block pre-configured for local-model mode. If you use
 > `opencode` **without** `--model` (cloud mode), remove the entire
 > `"provider": { … }` section. See
-> <https://opencode.ai/docs/models/> for provider configuration.
+> <https://opencode.ai/v2/docs/models/> for provider configuration.
 
 ### How it interacts with `opencode.jsonc` (local-model mode)
 
@@ -254,11 +254,11 @@ Starting OpenCode in container...
 
 ### Config seeding
 
-`opencode.jsonc.template` and `tui.jsonc.template` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so each becomes `opencode.jsonc` and `tui.jsonc` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
+`opencode.jsonc.template`, `tui.jsonc.template`, and `cli.jsonc.template` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so each becomes `opencode.jsonc`, `tui.jsonc`, and `cli.json` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
 
 The script root is a **transient handoff slot**, not a permanent home for the config files:
 
-- First launch after `opencode-init.sh`: the two `.jsonc` files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/`. If `opencode.jsonc` or `tui.jsonc` already exist at the destination, they are first copied to a timestamped backup (e.g. `20260716-143022_opencode.jsonc.backup`) before being overwritten.
+- First launch after `opencode-init.sh`: the three template files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/`. If the destination files already exist, they are first copied to a timestamped backup (e.g. `20260716-143022_opencode.jsonc.backup`) before being overwritten.
 - Subsequent launches: the script root is empty → the move step is silently skipped, and OpenCode continues reading the previously-seeded files from `dot-config/opencode/`.
 - If you never run `opencode-init.sh` (or you delete the source files), the move step is skipped on every launch and OpenCode falls back to whatever defaults it writes itself.
 
