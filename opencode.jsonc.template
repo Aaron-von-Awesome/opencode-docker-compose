@@ -5,6 +5,7 @@
   ],
   "update": "disable",
   "share": "disabled",
+  "websearch": false,
   //"lsp": true,
   // Default Agent
   "default_agent": "plan",
