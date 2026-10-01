@@ -273,12 +273,14 @@ export PGID=${PGID}
 
 # Ensure host-side directories exist so Docker doesn't create them as
 # directories with root ownership at mount time.
-mkdir -p "${HOME}/OpenCode/dot-config/opencode"
-mkdir -p "${HOME}/OpenCode/dot-local"
+mkdir -p "${HOME}/OpenCode/container-tmp"
+mkdir -p "${HOME}/OpenCode/development"
 mkdir -p "${HOME}/OpenCode/dot-cache"
+mkdir -p "${HOME}/OpenCode/dot-config/opencode"
+mkdir -p "${HOME}/OpenCode/dot-gitconfig"
+mkdir -p "${HOME}/OpenCode/dot-local"
 mkdir -p "${HOME}/OpenCode/dot-npm"
 mkdir -p "${HOME}/OpenCode/dot-ssh"
-mkdir -p "${HOME}/OpenCode/dot-gitconfig"
 
 # Move (not copy) the canonical .jsonc templates from the script root
 # into OpenCode's default config location (~/.config/opencode/). The
