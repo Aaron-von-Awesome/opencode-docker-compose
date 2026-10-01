@@ -6,36 +6,43 @@
   "update": "disable",
   "share": "disabled",
   //"lsp": true,
-  // Only one provider is ever enabled — the active model is selected at
-  // container start via `opencode-run.sh --model <shortname>`, which merges
-  // the matching `models/<shortname>.yaml` overlay. The overlay populates
-  // ACTIVE_MODEL_URL, ACTIVE_MODEL_NAME, and ACTIVE_MODEL_DISPLAY_NAME so
-  // this single provider block adapts to whichever model is bound.
-  "enabled_providers": ["active"],
-  // Uncomment the line below to disable all of the OpenCode "free" models that use your data for training.
-  // "disabled_providers": ["opencode"],
   // Default Agent
   "default_agent": "plan",
   // Small model for lightweight tasks like title generation. Uses the
   // active model by default; point to a cheaper model if available.
   // "small_model": "{env:ACTIVE_MODEL_NAME}",
-  // Maximum subagent nesting depth. 1 = primary agents can launch
-  // subagents but subagents cannot. 0 = no subagents.
-  "subagent_depth": 1,
   // Enable snapshot tracking for undo/revert of file changes.
-  "snapshot": true,
+  "snapshots": true,
   // Automatically compact to avoid exceeding the context limit
   "compaction": { "auto": true },
+  // Provider and subagent controls.
   "experimental": {
+    // Maximum subagent nesting depth. 1 = primary agents can launch
+    // subagents but subagents cannot. 0 = no subagents.
+    "subagent_depth": 1,
+    // Only allow the dynamically-bound "active" provider. The active model
+    // is selected at container start via `opencode-run.sh --model <shortname>`,
+    // which merges the matching `models/<shortname>.yaml` overlay. The overlay
+    // populates ACTIVE_MODEL_URL, ACTIVE_MODEL_NAME, and ACTIVE_MODEL_DISPLAY_NAME
+    // so this single provider block adapts to whichever model is bound.
     "policies": [
-      { "action": "provider.use", "resource": "opencode", "effect": "deny" }
+      { "action": "provider.use", "resource": "*", "effect": "deny" },
+      { "action": "provider.use", "resource": "active", "effect": "allow" }
     ]
   },
-  "provider": {
+  // Uncomment the policy below instead to only disable the OpenCode "free" models
+  // that use your data for training, while keeping other providers available.
+  // "experimental": {
+  //   "subagent_depth": 1,
+  //   "policies": [
+  //     { "action": "provider.use", "resource": "opencode", "effect": "deny" }
+  //   ]
+  // },
+  "providers": {
     "active": {
-      "npm": "@ai-sdk/openai-compatible",
+      "package": "aisdk:@ai-sdk/openai-compatible",
       "name": "{env:ACTIVE_MODEL_DISPLAY_NAME}",
-      "options": {
+      "settings": {
         "baseURL": "{env:ACTIVE_MODEL_URL}",
       },
       "models": {
