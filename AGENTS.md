@@ -41,7 +41,7 @@ branches, PRs, or tags in current history; no CI to satisfy.
 ## Gotchas an agent would otherwise miss
 
 - **Config seeding is a move, not a copy.** `opencode.jsonc.template`,
-  `tui.jsonc.template`, and `cli.jsonc.template` at the script root
+  and `cli.jsonc.template` at the script root
   (`~/OpenCode/`) are *moved* into `~/OpenCode/dot-config/opencode/` (suffix
   stripped) on each launch. After
   the first launch the slot is empty and the move is skipped silently. **To
@@ -102,8 +102,7 @@ Dockerfile              # ubuntu:26.04 + node + uv + opencode binary at /usr/loc
 entrypoint.sh           # in-container UID/GID remap + gosu drop-privileges
 models/<shortname>.yaml # one overlay per local model; merge via --model <shortname>
 opencode.jsonc.template # canonical config; moved into dot-config/opencode/ on launch
-tui.jsonc.template      # canonical TUI config; same move semantics
-cli.jsonc.template      # CLI settings (terminal.copy, etc.); same move semantics
+cli.jsonc.template      # CLI/TUI settings (theme, mouse, attention, terminal, etc.); same move semantics
 ```
 
 Host-side persistent layout (created by `opencode-run.sh`) lives at

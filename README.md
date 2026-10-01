@@ -245,7 +245,7 @@ Starting OpenCode in container...
 
 | Path                       | Maps to in container | Purpose                                                                                                                                                                                                      |
 | -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dot-config/`              | `~/.config/`         | Everything OpenCode reads from its XDG default location — skills, agents, commands, themes, plugins (`~/.config/opencode/*`), plus the seeded `opencode.jsonc` and `tui.jsonc` (see "Config seeding" below). |
+| `dot-config/`              | `~/.config/`         | Everything OpenCode reads from its XDG default location — skills, agents, commands, themes, plugins (`~/.config/opencode/*`), plus the seeded `opencode.jsonc` and `cli.json` (see "Config seeding" below). |
 | `dot-local/`               | `~/.local/`          | DB, auth, sessions, prompt history, model selection                                                                                                                                                          |
 | `dot-cache/`               | `~/.cache/`          | Download/build cache, agent binaries                                                                                                                                                                         |
 | `dot-npm/`                 | `~/.npm/`            | Plugin/skill dependency cache                                                                                                                                                                                |
@@ -254,7 +254,7 @@ Starting OpenCode in container...
 
 ### Config seeding
 
-`opencode.jsonc.template`, `tui.jsonc.template`, and `cli.jsonc.template` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so each becomes `opencode.jsonc`, `tui.jsonc`, and `cli.json` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
+`opencode.jsonc.template` and `cli.jsonc.template` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so each becomes `opencode.jsonc` and `cli.json` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
 
 The script root is a **transient handoff slot**, not a permanent home for the config files:
 
@@ -274,7 +274,7 @@ Edit config files on the host; changes take effect on the next container start. 
 - `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay. Detects and merges `extra-compose.yaml` from workspace directory for per-project OpenCode service customization (validated to allow only `opencode` service modifications).
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
 - `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
-- `opencode.jsonc.template`, `tui.jsonc.template`, `cli.jsonc.template` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc`, `tui.jsonc`, and `cli.json`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
+- `opencode.jsonc.template`, `cli.jsonc.template` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc` and `cli.json`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
 
 ## Troubleshooting: "Background service failed to start"
 

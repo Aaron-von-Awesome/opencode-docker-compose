@@ -1,5 +1,13 @@
 {
   "$schema": "https://opencode.ai/v2/cli.json",
+  "theme": {
+    "name": "opencode"
+  },
+  "mouse": false,
+  "attention": {
+    "notifications": true,
+    "sound": false,
+  },
   "terminal": {
     "copy": "manual",
   },

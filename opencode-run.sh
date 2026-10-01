@@ -288,7 +288,9 @@ mkdir -p "${HOME}/OpenCode/dot-gitconfig"
 # To push an updated config, re-run `opencode-init.sh` to re-copy the
 # canonical templates from the cloned repo into the script root, then
 # `opencode-run.sh` will move them into place on the next launch.
-for _pair in "opencode.jsonc.template:opencode.jsonc" "tui.jsonc.template:tui.jsonc" "cli.jsonc.template:cli.json"; do
+# In OpenCode v2, CLI/TUI settings are consolidated into cli.json —
+# tui.jsonc is no longer used.
+for _pair in "opencode.jsonc.template:opencode.jsonc" "cli.jsonc.template:cli.json"; do
   _src_name="${_pair%%:*}"
   _dst_name="${_pair##*:}"
   _src="${SCRIPT_DIR}/${_src_name}"
