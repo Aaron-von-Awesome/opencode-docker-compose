@@ -22,7 +22,7 @@ DEST="${HOME}/OpenCode"
 
 is_excluded() {
   case "$1" in
-    .git*|README.md|"$SCRIPT_NAME") return 0 ;;
+    .git*|README.md|AGENTS.md|LICENSE|"$SCRIPT_NAME") return 0 ;;
   esac
   return 1
 }
