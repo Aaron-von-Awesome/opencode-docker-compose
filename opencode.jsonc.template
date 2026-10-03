@@ -54,9 +54,8 @@
     },
   },
   "plugins": [
-    // "/home/abc/development/skills/ponytail/.opencode/plugins/ponytail.mjs",
     // "opencode-skill-creator",
-    // "/home/abc/development/skills/agent-creator/plugin.mjs",
+    // "/home/abc/development/skills/ponytail/.opencode/plugins",
     // "superpowers@git+https://github.com/obra/superpowers.git",
   ],
 }
