@@ -22,10 +22,10 @@ services:
       - "primeradiant.com:127.0.0.1" # Disable Super Powers Skill beacon
     volumes:
       - "${WORKSPACE_DIR:-.}:/home/abc/${OC_PROJECT_NAME:-workspace}"
-      - "${HOME}/OpenCode/dot-config:/home/abc/.config"
-      - "${HOME}/OpenCode/dot-local:/home/abc/.local"
-      - "${HOME}/OpenCode/dot-cache:/home/abc/.cache"
-      - "${HOME}/OpenCode/dot-npm:/home/abc/.npm"
+      - "${HOME}/OpenCode/dot-config/:/home/abc/.config/"
+      - "${HOME}/OpenCode/dot-local/:/home/abc/.local/"
+      - "${HOME}/OpenCode/dot-cache/:/home/abc/.cache/"
+      - "${HOME}/OpenCode/dot-npm/:/home/abc/.npm/"
       - "${HOME}/OpenCode/dot-ssh/:/home/abc/.ssh/"
       - "${HOME}/OpenCode/dot-gitconfig/.gitconfig:/home/abc/.gitconfig"
       # - "${HOME}/OpenCode/development/:/home/abc/development/"  # optional: additional global folder
