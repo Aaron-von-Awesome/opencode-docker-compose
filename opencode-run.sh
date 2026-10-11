@@ -292,7 +292,7 @@ mkdir -p "${HOME}/OpenCode/dot-ssh"
 # `opencode-run.sh` will move them into place on the next launch.
 # In OpenCode v2, CLI/TUI settings are consolidated into cli.json —
 # tui.jsonc is no longer used.
-for _pair in "opencode.jsonc.template:opencode.jsonc" "cli.jsonc.template:cli.json"; do
+for _pair in "opencode.jsonc.template:opencode.jsonc" "cli.json.template:cli.json"; do
   _src_name="${_pair%%:*}"
   _dst_name="${_pair##*:}"
   _src="${SCRIPT_DIR}/${_src_name}"
@@ -301,11 +301,11 @@ for _pair in "opencode.jsonc.template:opencode.jsonc" "cli.jsonc.template:cli.js
     if [ -f "$_dst" ]; then
       read -r -p "  ${_dst_name} exists. Overwrite? [y/N]: " _ans
       case "$_ans" in
-        y|Y|yes|YES) ;;
-        *)
-          rm "$_src"
-          continue
-          ;;
+      y | Y | yes | YES) ;;
+      *)
+        rm "$_src"
+        continue
+        ;;
       esac
       _ts="$(date +%Y%m%d-%H%M%S)"
       cp "$_dst" "${HOME}/OpenCode/dot-config/opencode/${_ts}_${_dst_name}.backup"

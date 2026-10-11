@@ -41,8 +41,8 @@ branches, PRs, or tags in current history; no CI to satisfy.
 ## Gotchas an agent would otherwise miss
 
 - **Config seeding is a move, not a copy.** `opencode.jsonc.template`,
-  and `cli.jsonc.template` at the script root
-  (`~/OpenCode/`) are *moved* into `~/OpenCode/dot-config/opencode/` (suffix
+  and `cli.json.template` at the script root
+  (`~/OpenCode/`) are _moved_ into `~/OpenCode/dot-config/opencode/` (suffix
   stripped) on each launch. After
   the first launch the slot is empty and the move is skipped silently. **To
   push an updated config: edit the template in the cloned repo, re-run
@@ -65,7 +65,7 @@ branches, PRs, or tags in current history; no CI to satisfy.
 - **`docker-model-runner` shows `(unhealthy)` for ~2 min** during large model
   loads. This is cosmetic — inference works regardless. The DMR plugin
   reasserts the image's healthcheck each binding cycle, so `docker update
-  --health-*` workarounds do not stick. Ignore the annotation.
+--health-*` workarounds do not stick. Ignore the annotation.
 - **Image tag is namespaced by `sha512(script_dir + hostname)[:12]`** as
   `local/<id>/opencode:latest-stable`. Building/launching from a different
   directory or host produces a different image and a fresh build.
@@ -102,7 +102,7 @@ Dockerfile              # ubuntu:26.04 + node + uv + opencode binary at /usr/loc
 entrypoint.sh           # in-container UID/GID remap + gosu drop-privileges
 models/<shortname>.yaml # one overlay per local model; merge via --model <shortname>
 opencode.jsonc.template # canonical config; moved into dot-config/opencode/ on launch
-cli.jsonc.template      # CLI/TUI settings (theme, mouse, attention, terminal, etc.); same move semantics
+cli.json.template      # CLI/TUI settings (theme, mouse, attention, terminal, etc.); same move semantics
 ```
 
 Host-side persistent layout (created by `opencode-run.sh`) lives at

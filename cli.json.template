@@ -10,6 +10,7 @@
     "sound": true
   },
   "terminal": {
+    "title": true,
     "copy": "manual"
   },
   "animations": true,
