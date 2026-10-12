@@ -23,7 +23,7 @@ RUN apt-get update && \
   gnupg \
   locales && \
   locale-gen en_US.UTF-8 && \
-  curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR_VERSION}.x | bash - && \
+  curl -fsSL --retry 5 --retry-all-errors https://deb.nodesource.com/setup_${NODE_MAJOR_VERSION}.x | bash - && \
   apt-get install -y --no-install-recommends \
   nodejs \
   direnv \
@@ -67,7 +67,7 @@ RUN userdel -r ubuntu 2>/dev/null || true && \
 # Docker auto-creates the path (root-owned, mode 755) at mount time, which
 # `abc` can traverse, and entrypoint.sh chowns the mount contents at
 # runtime once PUID/PGID are remapped.
-RUN curl -fsSL https://opencode.ai/v2/install | bash && \
+RUN curl -fsSL --retry 5 --retry-all-errors https://opencode.ai/v2/install | bash && \
   install -m 0755 /root/.opencode/bin/opencode /usr/local/bin/opencode && \
   rm -rf /root/.opencode
 
