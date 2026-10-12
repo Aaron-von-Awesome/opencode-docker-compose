@@ -1,14 +1,19 @@
 FROM ubuntu:26.04
 
 ARG NODE_MAJOR_VERSION=26
-ARG UV_VERSION=0.12.21
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# Locale defaults. Generated in the apt RUN below.
+# Locale defaults & UV Settings
 ENV LANG=en_US.UTF-8 \
   LANGUAGE=en_US.UTF-8 \
-  LC_ALL=en_US.UTF-8
+  LC_ALL=en_US.UTF-8 \
+  UV_TOOL_DIR=/opt/uv-tools \
+  UV_TOOL_BIN_DIR=/usr/local/bin \
+  UV_PYTHON_DOWNLOADS=never
+
+# Install uv package manager (version 0.12.21)
+COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install Node.js and development tools
 RUN apt-get update && \
@@ -36,13 +41,6 @@ RUN apt-get update && \
   sqlite3 \
   sudo && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install uv package manager (version 0.12.21)
-RUN curl -L https://releases.astral.sh/github/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz -o uv.tar.gz \
-  && tar -xzf uv.tar.gz -C /usr/local/bin --strip-components=1 uv-x86_64-unknown-linux-gnu/ \
-  && chmod +x /usr/local/bin/uv \
-  && chmod +x /usr/local/bin/uvx \
-  && rm uv.tar.gz
 
 # Create default user "abc" (linuxserver convention) at placeholder UID 911.
 # `-U` creates a same-named group automatically (GID auto-assigned; both
