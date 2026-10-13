@@ -8,7 +8,8 @@ ENV LANG=en_US.UTF-8 \
   LC_ALL=en_US.UTF-8 \
   UV_TOOL_DIR=/opt/uv-tools \
   UV_TOOL_BIN_DIR=/usr/local/bin \
-  UV_PYTHON_DOWNLOADS=never
+  UV_PYTHON_DOWNLOADS=never \
+  UV_LINK_MODE=copy
 
 # Install uv package manager (version 0.12.21)
 COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/
