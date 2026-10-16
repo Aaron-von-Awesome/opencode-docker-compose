@@ -40,5 +40,8 @@
     "editor": true,
     "paste": "full",
     "image_preview": false
+  },
+  "keybinds": {
+      "leader": "ctrl+space"
   }
 }
