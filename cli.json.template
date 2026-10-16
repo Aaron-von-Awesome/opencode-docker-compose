@@ -4,7 +4,7 @@
     "name": "tokyonight",
     "mode": "dark"
   },
-  "mouse": false,
+  "mouse": true,
   "attention": {
     "notifications": true,
     "sound": true
