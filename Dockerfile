@@ -40,7 +40,10 @@ RUN apt-get update && \
   python-is-python3 \
   ripgrep \
   sqlite3 \
-  sudo && \
+  sudo \
+  xclip \
+  xsel \
+  xvfb && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create default user "abc" (linuxserver convention) at placeholder UID 911.
