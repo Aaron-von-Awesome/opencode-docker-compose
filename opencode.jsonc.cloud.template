@@ -1,0 +1,71 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Default model for the session. The visible agents (build / plan) inherit
+  // this, and subagents (general / explore) inherit the parent session's model.
+  "model": "opencode-go/longcat-2.0",
+
+  // Hidden title/summary/compaction agents do NOT inherit the top-level model,
+  // so they need explicit overrides. This is what fixes the "Small Model" issue.
+  "agents": {
+    "title": { "model": "opencode-go/longcat-2.0" }, // "Small Model" Issue -> https://github.com/anomalyco/opencode/issues/52367#issuecomment-5971768783
+    "summary": { "model": "opencode-go/longcat-2.0" },
+    "compaction": { "model": "opencode-go/longcat-2.0" },
+
+    // build / plan / general / explore already inherit the top-level "model"
+    // above, so these entries are optional. Keep them only if you want them
+    // to be explicit.
+    "general": { "model": "opencode-go/longcat-2.0" },
+    "explore": { "model": "opencode-go/longcat-2.0" },
+    "build": { "model": "opencode-go/longcat-2.0" },
+    "plan": { "model": "opencode-go/longcat-2.0" },
+  },
+
+  // Default Agent
+  "default_agent": "plan",
+
+  // Enable snapshot tracking for undo/revert of file changes.
+  "snapshots": true,
+
+  // Automatically compact to avoid exceeding the context limit
+  "compaction": { "auto": true },
+
+  // Disable Web Search
+  "websearch": false,
+
+  // Enable for adding Language Server Protocol (LSP) integration
+  //"lsp": true,
+
+  // Disable Auto-updates
+  "update": "disable",
+
+  // Disable sharing of OpenCode Sessions
+  "share": "disabled",
+
+  // Per-agent tool rules: allow everything, then block `git push`.
+  "permissions": [
+    { "action": "*", "resource": "*", "effect": "allow" },
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+  ],
+
+  // Provider access control (see explanation below).
+  // `provider.use` runs at the PROVIDER-ID level, so this makes opencode-go the
+  // only usable provider while keeping ALL of its models available.
+  "policies": [
+    { "action": "provider.use", "resource": "*", "effect": "deny" },
+    { "action": "provider.use", "resource": "opencode-go", "effect": "allow" },
+  ],
+
+  // Current OpenCode v2 location for subagent nesting depth.
+  // 1 = primary agents can launch subagents, but subagents cannot.
+  "experimental": {
+    "subagent_depth": 1,
+  },
+
+  "plugins": [
+    // "/home/abc/development/skills/ponytail/.opencode/plugins",
+    // "opencode-skill-creator",
+    // "superpowers@git+https://github.com/obra/superpowers.git",
+    // "/home/abc/development/skills/agent-creator",
+  ],
+}

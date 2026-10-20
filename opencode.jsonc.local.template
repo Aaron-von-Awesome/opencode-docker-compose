@@ -1,0 +1,73 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Use Local Model
+  "providers": {
+    "active": {
+      "package": "aisdk:@ai-sdk/openai-compatible",
+      "name": "{env:ACTIVE_MODEL_DISPLAY_NAME}",
+      "settings": {
+        "baseURL": "{env:ACTIVE_MODEL_URL}",
+      },
+      "models": {
+        "{env:ACTIVE_MODEL_NAME}": {
+          "name": "{env:ACTIVE_MODEL_NAME}",
+        },
+      },
+    },
+  },
+
+  // Default Agent
+  "default_agent": "plan",
+
+  // Enable snapshot tracking for undo/revert of file changes.
+  "snapshots": true,
+
+  // Automatically compact to avoid exceeding the context limit
+"compaction": {
+    "auto": true,
+    "keep": { "tokens": 24000 },
+    "buffer": 16000,
+  },
+
+  // Disable Web Search
+  "websearch": false,
+
+  // Enable for adding Language Server Protocol (LSP) integration
+  //"lsp": true,
+
+  // Disable Auto-updates
+  "update": "disable",
+
+  // Disable sharing of OpenCode Sessions
+  "share": "disabled",
+
+  // Per-agent tool rules: allow everything, then block `git push`.
+  "permissions": [
+    { "action": "*", "resource": "*", "effect": "allow" },
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+  ],
+
+  // Only allow the dynamically-bound "active" provider. The active model
+  // is selected at container start via `opencode-run.sh --model <shortname>`,
+  // which merges the matching `models/<shortname>.yaml` overlay. The overlay
+  // populates ACTIVE_MODEL_URL, ACTIVE_MODEL_NAME, and ACTIVE_MODEL_DISPLAY_NAME
+  // so this single provider block adapts to whichever model is bound.
+  "policies": [
+    { "action": "provider.use", "resource": "*", "effect": "deny" },
+    { "action": "provider.use", "resource": "active", "effect": "allow" }
+  ],
+
+  // Current OpenCode v2 location for subagent nesting depth.
+  // 1 = primary agents can launch subagents, but subagents cannot.
+  "experimental": {
+    "subagent_depth": 1,
+  },
+
+  "plugins": [
+    // "/home/abc/development/skills/ponytail/.opencode/plugins",
+    // "opencode-skill-creator",
+    // "superpowers@git+https://github.com/obra/superpowers.git",
+    // "/home/abc/development/skills/agent-creator",
+  ],
+}
