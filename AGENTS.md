@@ -40,19 +40,25 @@ branches, PRs, or tags in current history; no CI to satisfy.
 
 ## Gotchas an agent would otherwise miss
 
-- **Config seeding is a move, not a copy.** `opencode.jsonc.template`,
-  and `cli.json.template` at the script root
-  (`~/OpenCode/`) are _moved_ into `~/OpenCode/dot-config/opencode/` (suffix
-  stripped) on each launch. After
-  the first launch the slot is empty and the move is skipped silently. **To
-  push an updated config: edit the template in the cloned repo, re-run
-  `opencode-init.sh`, then launch** — the move step picks it up. Existing
-  destination files are backed up with a timestamp prefix before overwrite.
-- **Cloud mode requires deleting the `"provider"` block** from `opencode.jsonc`.
-  The shipped template has a local `active` provider pre-configured for
-  `--model` mode; if you launch without `--model` and leave it in, OpenCode
-  has no usable backend.
-- **Adding a local model = one file.** Mirror `models/gpt120b.yaml`: a
+- **Config seeding is a move, not a copy.** `opencode.jsonc.template` and
+  `cli.json.template` at the script root (`~/OpenCode/`) are _moved_ into
+  `~/OpenCode/dot-config/opencode/` (suffix stripped) on each launch. After
+  the first launch the slot is empty and the move is skipped silently. The
+  deployed `opencode.jsonc.template` is produced by `opencode-init.sh`, which
+  copies either `opencode.jsonc.cloud.template` or
+  `opencode.jsonc.local.template` from the cloned repo based on the user's
+  cloud/local choice. **To push an updated config: edit the chosen template
+  in the cloned repo, re-run `opencode-init.sh`, then launch** — the move
+  step picks it up. Existing destination files are backed up with a
+  timestamp prefix before overwrite.
+- **Cloud mode requires the cloud template.** `opencode-init.sh` deploys
+  `opencode.jsonc.template` from either `opencode.jsonc.cloud.template` or
+  `opencode.jsonc.local.template` based on your choice. If you initially
+  chose local but want to switch to cloud (or vice versa), delete
+  `~/OpenCode/.config-mode` and re-run `opencode-init.sh` — it will
+  re-prompt and deploy the other template. The cloud template uses the
+  `opencode-go` provider and has no local `active` provider block.
+- **Adding a local model = one file.** Mirror `models/ornith15.yaml`: a
   `services.opencode.models.llm_active` block referencing `ACTIVE_MODEL_URL` /
   `ACTIVE_MODEL_NAME` env vars, plus an `environment:` block setting
   `ACTIVE_MODEL_DISPLAY_NAME`, and a top-level `models.llm_active.model:`
@@ -101,7 +107,8 @@ docker-compose.yaml     # base service, NO model bindings
 Dockerfile              # ubuntu:26.04 + node + uv + opencode binary at /usr/local/bin
 entrypoint.sh           # in-container UID/GID remap + gosu drop-privileges
 models/<shortname>.yaml # one overlay per local model; merge via --model <shortname>
-opencode.jsonc.template # canonical config; moved into dot-config/opencode/ on launch
+opencode.jsonc.cloud.template # cloud config (third-party provider); deployed as opencode.jsonc.template by init
+opencode.jsonc.local.template # local config (Docker Model Runner); deployed as opencode.jsonc.template by init
 cli.json.template      # CLI/TUI settings (theme, mouse, attention, terminal, etc.); same move semantics
 ```
 

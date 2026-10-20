@@ -14,10 +14,11 @@ Clone the repo, then run the initializer script located in the repository:
 ./opencode-init.sh
 ```
 
-`opencode-init.sh` does two things:
+`opencode-init.sh` does three things:
 
-1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `opencode-run.sh`, the three `.jsonc` templates, the `models/` overlay directory, and anything else in the repo root _except_ `README.md`, anything matching `.git*`, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
-2. **Adds the `opencode` alias to `~/.bashrc`** (if not already present) so you can launch from any directory:
+1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `opencode-run.sh`, `cli.json.template`, the `models/` overlay directory, and anything else in the repo root _except_ `README.md`, anything matching `.git*`, the two `opencode.jsonc.*.template` files, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
+2. **Prompts for a configuration type** — you choose `[c] Cloud` (third-party provider) or `[l] Local` (Docker Model Runner). The matching template is deployed as `opencode.jsonc.template`. Your choice is saved to `${HOME}/OpenCode/.config-mode`, so re-runs skip the prompt. Delete `.config-mode` and re-run to switch.
+3. **Adds the `opencode` alias to `~/.bashrc`** (if not already present) so you can launch from any directory:
    ```bash
    alias opencode='${HOME}/OpenCode/opencode-run.sh'
    ```
@@ -29,7 +30,7 @@ Safe to re-run — overwrite prompts and the alias-presence check keep it idempo
 
 ```bash
 # Local model via Docker Model Runner:
-./opencode-run.sh --model gpt120b [/path/to/your/project]
+./opencode-run.sh --model ornith15 [/path/to/your/project]
 
 # Cloud / third-party provider configured in opencode.jsonc:
 ./opencode-run.sh [/path/to/your/project]
@@ -61,9 +62,9 @@ Once the alias is in place, every form of the launcher works the same way — ar
 
 ```bash
 opencode                                  # cloud mode, current directory as workspace
-opencode --model gpt120b                  # local model, current directory
+opencode --model ornith15                 # local model, current directory
 opencode /path/to/your/project            # cloud mode, given project as workspace
-opencode --model gpt120b /path/to/project # local model, given project
+opencode --model ornith15 /path/to/project # local model, given project
 opencode --help                           # show usage and available overlays
 ```
 
@@ -78,8 +79,9 @@ Two modes:
 Only **one** local model is bound to the service per launch — Docker Model Runner has no documented way to cap concurrent loads, so we control it at the compose level by merging in exactly one overlay file at runtime.
 
 ```bash
-./opencode-run.sh --model gpt120b     # ai/gpt-oss:120b-f16
-./opencode-run.sh --model qwen3635b   # ai/qwen3.6:35b-a3b-mtp-q8_0
+./opencode-run.sh --model ornith15     # ai/ornith-1.5:35b-a3b-q4_K_M
+./opencode-run.sh --model qwen3627b    # ai/qwen3.6:27b-q4_K_M
+./opencode-run.sh --model glm47flash   # ai/glm-4.7-flash:q4_K_M
 ```
 
 Each shortname maps to the file `models/<shortname>.yaml`. To add a new model, drop a new overlay file in `models/` — no script edits needed. `./opencode-run.sh --help` lists what's available.
@@ -116,7 +118,7 @@ The base compose file has no model bindings, so Docker Model Runner is bypassed 
 - No "selecting the wrong model" failure mode: the picker only ever offers the bound model.
 - Adding a new local model = one overlay file. `opencode.jsonc` never changes.
 
-To add a local model, mirror an existing overlay (e.g. `models/gpt120b.yaml`):
+To add a local model, mirror an existing overlay (e.g. `models/ornith15.yaml`):
 
 ```yaml
 services:
@@ -254,11 +256,13 @@ Starting OpenCode in container...
 
 ### Config seeding
 
-`opencode.jsonc.template` and `cli.json.template` are placed alongside `opencode-run.sh` at the script root by `opencode-init.sh`. On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so each becomes `opencode.jsonc` and `cli.json` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
+Two source templates live in the cloned repo: `opencode.jsonc.cloud.template` (for third-party providers) and `opencode.jsonc.local.template` (for Docker Model Runner). `opencode-init.sh` deploys the one you chose as `opencode.jsonc.template` at the script root, alongside `cli.json.template`.
+
+On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so each becomes `opencode.jsonc` and `cli.json` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from. The compose file no longer sets `OPENCODE_CONFIG` or `OPENCODE_TUI_CONFIG`; OpenCode just picks them up from the default path.
 
 The script root is a **transient handoff slot**, not a permanent home for the config files:
 
-- First launch after `opencode-init.sh`: the three template files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/`. If the destination files already exist, they are first copied to a timestamped backup (e.g. `20260716-143022_opencode.jsonc.backup`) before being overwritten.
+- First launch after `opencode-init.sh`: the two template files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/`. If the destination files already exist, they are first copied to a timestamped backup (e.g. `20260716-143022_opencode.jsonc.backup`) before being overwritten.
 - Subsequent launches: the script root is empty → the move step is silently skipped, and OpenCode continues reading the previously-seeded files from `dot-config/opencode/`.
 - If you never run `opencode-init.sh` (or you delete the source files), the move step is skipped on every launch and OpenCode falls back to whatever defaults it writes itself.
 
@@ -268,13 +272,16 @@ Edit config files on the host; changes take effect on the next container start. 
 
 ## Files
 
-- `opencode-init.sh` — Host-side first-time-setup script. Copies the project tree to `${HOME}/OpenCode/` (excluding `README.md`, `.git*`, and itself), prompts before overwriting existing files, and installs the `opencode` alias in `~/.bashrc` if not already present. Idempotent; safe to re-run.
+- `opencode-init.sh` — Host-side first-time-setup script. Copies the project tree to `${HOME}/OpenCode/` (excluding `README.md`, `.git*`, the `opencode.jsonc.*.template` files, and itself), prompts before overwriting existing files, prompts for cloud/local configuration mode (deploys the chosen template as `opencode.jsonc.template`), and installs the `opencode` alias in `~/.bashrc` if not already present. Remembers the cloud/local choice in `${HOME}/OpenCode/.config-mode`; re-run to update files, delete `.config-mode` to re-prompt. Idempotent; safe to re-run.
 - `Dockerfile` — Ubuntu 26.04 base. Installs Node + uv + OpenCode toolchain; copies the OpenCode binary to `/usr/local/bin/` so it survives any bind mount under `/home/abc`. Hardening borrowed from linuxserver.io: `userdel ubuntu` removes the default UID-1000 user that ships with 26.04 (eliminates a PUID collision), `locales` is installed and `en_US.UTF-8` generated to prevent TUI/encoding glitches, and the `abc` user is created via `useradd -u 911 -U` (matching group auto-created; GID is remapped at runtime).
 - `entrypoint.sh` — Remaps `abc` UID/GID to host `PUID`/`PGID`, then drops privileges via `gosu`.
 - `opencode-run.sh` — Host-side launcher. Parses `--model`, validates overlays, runs the Model Runner pre-flight (unloads any conflicting models), bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay. Detects and merges `extra-compose.yaml` from workspace directory for per-project OpenCode service customization (validated to allow only `opencode` service modifications).
 - `docker-compose.yaml` — Base service definition: volume mounts, env-var-driven config paths. **No model bindings** — those live in `models/` overlays.
 - `models/*.yaml` — One overlay per model. Each adds a single `llm_active` binding (env vars `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`) plus an `environment:` block setting `ACTIVE_MODEL_DISPLAY_NAME` for the picker label. Selected at runtime via `--model`.
-- `opencode.jsonc.template`, `cli.json.template` — Canonical config templates at the script root. Moved into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc` and `cli.json`), which the container sees at `~/.config/opencode/` (the XDG default). Edit these to change the config; delete them to fall back to OpenCode-generated defaults.
+- `opencode.jsonc.cloud.template` — Cloud configuration template. Uses the `opencode-go` provider with a third-party model.
+- `opencode.jsonc.local.template` — Local configuration template. Defines an `active` provider that reads `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`, and `ACTIVE_MODEL_DISPLAY_NAME` from env vars populated by the model overlay.
+- `cli.json.template` — CLI/TUI settings template.
+- `opencode-init.sh` deploys one of the `opencode.jsonc.*.template` files as `opencode.jsonc.template` at the script root based on your cloud/local choice. `opencode-run.sh` then moves it (and `cli.json.template`) into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc` and `cli.json`), which the container sees at `~/.config/opencode/` (the XDG default). Edit the source templates to change the config; delete them to fall back to OpenCode-generated defaults.
 
 ## Troubleshooting: "Background service failed to start"
 
