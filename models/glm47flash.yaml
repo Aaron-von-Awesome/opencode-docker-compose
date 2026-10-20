@@ -1,0 +1,19 @@
+services:
+  opencode:
+    models:
+      llm_active:
+        endpoint_var: ACTIVE_MODEL_URL
+        model_var: ACTIVE_MODEL_NAME
+    environment:
+      ACTIVE_MODEL_DISPLAY_NAME: "GLM 4.7 Flash"
+
+models:
+  llm_active:
+    model: ai/glm-4.7-flash:q4_K_M
+    runtime_flags:
+      - "--temp"
+      - "1.0"
+      - "--top-p"
+      - "0.95"
+      - "--repeat-penalty"
+      - "1.0"

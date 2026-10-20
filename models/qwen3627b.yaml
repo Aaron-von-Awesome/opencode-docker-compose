@@ -1,0 +1,35 @@
+services:
+  opencode:
+    models:
+      llm_active:
+        endpoint_var: ACTIVE_MODEL_URL
+        model_var: ACTIVE_MODEL_NAME
+    environment:
+      ACTIVE_MODEL_DISPLAY_NAME: "Qwen3.6 27B"
+
+models:
+  llm_active:
+    model: ai/qwen3.6:27b-q4_K_M
+    runtime_flags:
+      - "--temp"
+      - "1.0"
+      - "--top-p"
+      - "0.95"
+      - "--min-p"
+      - "0.00"
+      - "--presence-penalty"
+      - "0.0"
+      - "--repeat-penalty"
+      - "1.0"
+      - "--flash-attn"
+      - "on"
+      - "--cache-type-k"
+      - "q8_0"
+      - "--cache-type-v"
+      - "q8_0"
+      - "--batch-size"
+      - "4096"
+      - "--ubatch-size"
+      - "2048"
+      - "--ctx-size"
+      - "65536"
