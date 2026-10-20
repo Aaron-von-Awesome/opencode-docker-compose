@@ -5,12 +5,10 @@ services:
         endpoint_var: ACTIVE_MODEL_URL
         model_var: ACTIVE_MODEL_NAME
     environment:
-      # ACTIVE_MODEL_DISPLAY_NAME: "Ornith 1.5 9B"
       ACTIVE_MODEL_DISPLAY_NAME: "Ornith 1.5 A3B 35B"
 
 models:
   llm_active:
-    # model: ai/ornith-1.5:9b-bf16
     model: ai/ornith-1.5:35b-a3b-q4_K_M
     runtime_flags:
       # For precise coding tasks:
