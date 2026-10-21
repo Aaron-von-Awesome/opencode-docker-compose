@@ -38,10 +38,9 @@ services:
       OC_PROJECT_NAME: "${OC_PROJECT_NAME}"
       TERM: "xterm-256color"
       OPENCODE_DISABLE_FREE_MODELS: "1"
-      # OPENCODE_EXPERIMENTAL_LSP_TOOL removed — inert in V2 (no LSP runtime yet).
-      # OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT removed — use config instead:
-      #   { "terminal": { "copy": "manual" } } in cli.json
+      # ------------------------------
       # Custom Plugin Settings
+      # ------------------------------
       PONYTAIL_DEFAULT_MODE: "off"
       SUPERPOWERS_DISABLE_TELEMETRY: "1"
     # Healthcheck for the OpenCode service itself (independent of the
