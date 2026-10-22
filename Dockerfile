@@ -11,8 +11,8 @@ ENV LANG=en_US.UTF-8 \
   UV_PYTHON_DOWNLOADS=never \
   UV_LINK_MODE=copy
 
-# Install uv package manager (version 0.12.21)
-COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/
+# Install uv package manager (version 0.13.5)
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /usr/local/bin/
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
