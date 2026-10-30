@@ -40,7 +40,7 @@ RUN apt-get update && \
   python-is-python3 \
   ripgrep \
   sqlite3 \
-  sudo \
+  x11-utils \
   xclip \
   xsel \
   xvfb && \
@@ -65,12 +65,6 @@ RUN userdel -r ubuntu 2>/dev/null || true && \
 # bind mount under /home/abc. OpenCode's actual runtime state goes to
 # XDG paths (~/.config/opencode, ~/.local/share/opencode, ~/.cache/opencode)
 # which it creates on demand as user `abc` at first run.
-#
-# Note: the bind-mount target for $OPENCODE_CONFIG_DIR
-# (/home/abc/OpenCode/dot-opencode) is intentionally NOT pre-created here.
-# Docker auto-creates the path (root-owned, mode 755) at mount time, which
-# `abc` can traverse, and entrypoint.sh chowns the mount contents at
-# runtime once PUID/PGID are remapped.
 RUN curl -fsSL --retry 5 --retry-all-errors https://opencode.ai/v2/install | bash && \
   install -m 0755 /root/.opencode/bin/opencode /usr/local/bin/opencode && \
   rm -rf /root/.opencode

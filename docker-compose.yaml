@@ -17,6 +17,10 @@ services:
       dockerfile: Dockerfile
     stdin_open: true
     tty: true
+    # Private in-process server: the shared background service registers in
+    # ~/.local/state/opencode/service.json (shared via dot-local), so parallel
+    # containers would keep replacing each other's service.
+    command: ["opencode", "--standalone"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "primeradiant.com:127.0.0.1" # Disable Super Powers Skill beacon
@@ -43,13 +47,8 @@ services:
       # ------------------------------
       PONYTAIL_DEFAULT_MODE: "off"
       SUPERPOWERS_DISABLE_TELEMETRY: "1"
-    # Healthcheck for the OpenCode service itself (independent of the
-    # Docker Model Runner backend container, which has its own healthcheck
-    # we cannot configure from here). We check that the `opencode` process
-    # is running inside the container — works in both local-model and
-    # cloud/third-party modes since it doesn't depend on any model-related
-    # env vars. The 60s start_period covers OpenCode's first-run database
-    # migration; steady-state checks then run every 30s.
+    # Checks only that `opencode` is running, so it works in every mode.
+    # start_period covers OpenCode's first-run database migration.
     healthcheck:
       test: ["CMD-SHELL", "pgrep -x opencode >/dev/null || exit 1"]
       interval: 30s
@@ -59,8 +58,7 @@ services:
     networks:
       opencode-net:
 
-# Model bindings are intentionally NOT defined here. Each model lives in its
-# own overlay file under `models/` and is selected at runtime via
-# `opencode-run.sh --model <shortname>`. This ensures only one model is
-# declared per service start, so Docker Model Runner only ever loads one
-# model into memory at a time.
+# No model backend is defined here. `opencode-run.sh --model <shortname>`
+# merges one models/<backend>/<shortname>.yaml overlay: for llama.cpp (cpp)
+# plus docker-compose.llama-cpp.yaml; for Docker Model Runner (dmr) the
+# overlay carries a single `models:` binding so DMR loads one model at a time.
