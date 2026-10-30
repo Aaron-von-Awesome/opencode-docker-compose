@@ -1,0 +1,30 @@
+# Merged by opencode-run.sh only with --model on the cpp backend.
+# models/cpp/<shortname>.yaml adds LLAMA_ARG_MODEL and per-model flags.
+# No host port: reachable only on opencode-net. Add `ports:` here if needed.
+services:
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server-rocm
+    container_name: llama-server
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
+    volumes:
+      - "${OPENCODE_GGUF_DIR}:/mnt/storage/llama-cpp/models:ro"
+    labels:
+      opencode.model: "${MODEL_PROFILE}"
+    environment:
+      LLAMA_ARG_HOST: "0.0.0.0"
+      LLAMA_ARG_PORT: "8080"
+      LLAMA_ARG_N_GPU_LAYERS: "999"
+      LLAMA_ARG_FLASH_ATTN: "on"
+      LLAMA_ARG_ALIAS: "${MODEL_PROFILE}"
+    networks:
+      opencode-net:
+
+  opencode:
+    environment:
+      ACTIVE_MODEL_URL: "http://llama-server:8080/v1"
+      ACTIVE_MODEL_NAME: "${MODEL_PROFILE}"

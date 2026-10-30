@@ -1,24 +1,14 @@
 #!/usr/bin/env bash
-# Initialize OpenCode on the host: copy the project artifacts from this
-# cloned repo to ${HOME}/OpenCode/ (the location the `opencode` alias
-# expects), then ensure that alias is installed in ~/.bashrc.
-#
-# Safe to re-run. Files that already exist at the destination trigger an
-# overwrite prompt; the alias is added only if it isn't already present.
-#
-# After copying, prompts the user to choose a configuration mode
-# ("cloud" for third-party providers, "local" for Docker Model Runner)
-# and deploys the matching template as opencode.jsonc.template. The
-# choice is saved to ${DEST}/.config-mode so re-runs skip the prompt.
-#
-# Excluded from the copy:
-#   - README.md (not part of the runtime)
-#   - Anything matching `.git*` (repo metadata)
-#   - This script itself
-#   - opencode.jsonc.cloud.template and opencode.jsonc.local.template
-#     (handled separately by select_config_mode)
-#
 # Usage: ./opencode-init.sh
+# Copies this repo to ${HOME}/OpenCode/ (prompting before overwrites), then:
+#   - asks cloud or local and deploys the matching opencode.jsonc.*.template
+#     as opencode.jsonc.template (saved to .config-mode)
+#   - local only: asks llama.cpp (cpp) or Docker Model Runner (dmr)
+#     (saved to .local-backend)
+#   - adds the `opencode` alias to ~/.bashrc if missing
+# Saved choices skip their prompts on re-run; delete the file to re-prompt.
+# Not copied: .git*, README.md, AGENTS.md, LICENSE, this script, and the two
+# opencode.jsonc.*.template files.
 
 set -euo pipefail
 shopt -s nullglob
@@ -34,24 +24,23 @@ is_excluded() {
   return 1
 }
 
-# Prompt the user to choose a configuration mode (cloud or local) and
-# deploy the matching template as opencode.jsonc.template at the destination.
-# Remembers the choice in ${DEST}/.config-mode so re-runs skip the prompt.
+# Prints "cloud" or "local": the saved .config-mode, else prompts. Messages go
+# to stderr because the caller captures stdout.
 CONFIG_MODE_FILE="${DEST}/.config-mode"
 
 select_config_mode() {
   local saved_mode=""
   if [ -f "$CONFIG_MODE_FILE" ]; then
     saved_mode="$(cat "$CONFIG_MODE_FILE")"
-    echo "Saved config mode: ${saved_mode} (from ${CONFIG_MODE_FILE})"
-    echo "Delete this file and re-run to change it."
+    echo "Saved config mode: ${saved_mode} (from ${CONFIG_MODE_FILE})" >&2
+    echo "Delete this file and re-run to change it." >&2
     echo "$saved_mode"
     return
   fi
 
   local ans
   while true; do
-    read -r -p "Configuration type — [c] Cloud (third-party provider) or [l] Local (Docker Model Runner): " ans
+    read -r -p "Configuration type — [c] Cloud (third-party provider) or [l] Local (llama.cpp or Docker Model Runner): " ans
     case "$ans" in
       c|C|cloud|CLOUD)
         echo "cloud"
@@ -62,7 +51,7 @@ select_config_mode() {
         return
         ;;
       *)
-        echo "Please enter 'c' for cloud or 'l' for local."
+        echo "Please enter 'c' for cloud or 'l' for local." >&2
         ;;
     esac
   done
@@ -115,10 +104,7 @@ copy_tree() {
 echo "Initializing OpenCode -> ${DEST}"
 copy_tree "$SCRIPT_DIR" "$DEST"
 
-# Deploy the selected configuration template. Both source templates were
-# excluded from the tree copy above; we copy only the chosen one as
-# opencode.jsonc.template, which opencode-run.sh will move into
-# dot-config/opencode/ on launch.
+# Deploy the chosen template; opencode-run.sh moves it into dot-config/ on launch.
 MODE="$(select_config_mode)"
 case "$MODE" in
   cloud)
@@ -135,6 +121,26 @@ case "$MODE" in
     ;;
 esac
 printf '%s\n' "$MODE" > "$CONFIG_MODE_FILE"
+
+# Local mode only: opencode-run.sh reads this to pick models/<backend>/.
+BACKEND_FILE="${DEST}/.local-backend"
+if [ "$MODE" = "local" ]; then
+  if [ -f "$BACKEND_FILE" ]; then
+    echo "Saved local backend: $(cat "$BACKEND_FILE") (from ${BACKEND_FILE})"
+    echo "Delete this file and re-run to change it."
+  else
+    while true; do
+      read -r -p "Local backend — [c] llama.cpp (default) or [d] Docker Model Runner: " ans
+      case "$ans" in
+        ""|c|C) BACKEND="cpp"; break ;;
+        d|D) BACKEND="dmr"; break ;;
+        *) echo "Please enter 'c' for llama.cpp or 'd' for Docker Model Runner." ;;
+      esac
+    done
+    printf '%s\n' "$BACKEND" > "$BACKEND_FILE"
+    echo "Saved local backend: ${BACKEND} -> ${BACKEND_FILE}"
+  fi
+fi
 
 # Self-heal executable bits in case a previous copy lost them.
 [ -f "${DEST}/opencode-run.sh" ] && chmod +x "${DEST}/opencode-run.sh"

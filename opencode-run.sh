@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Usage: ./opencode-run.sh [--model SHORTNAME] [/path/to/your/project]
-# If no path given, uses current directory.
-# If --model is given, the matching `models/<shortname>.yaml` overlay is
-# merged in and OpenCode runs against Docker Model Runner.
-# If --model is omitted, OpenCode runs WITHOUT a local model bound — use
-# this when you've configured a cloud/third-party provider in
-# opencode.jsonc (see https://opencode.ai/v2/docs/models/).
-# Run with --help for the list of available local-model shortnames.
+# Path defaults to the current directory. --model merges
+# models/<backend>/<shortname>.yaml, where <backend> (cpp = llama.cpp,
+# dmr = Docker Model Runner) is read from .local-backend (set by
+# opencode-init.sh). Without --model, OpenCode uses the provider in
+# opencode.jsonc (cloud mode). --help lists the available shortnames.
 
 set -euo pipefail
 
@@ -14,58 +12,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIRECTORY_ID="$(echo -n "${SCRIPT_DIR}+${HOSTNAME}" | sha512sum | cut -c1-12)"
 
 # ------------------------------------------------------------------
-# Validation function for extra-compose.yaml
-# ------------------------------------------------------------------
-# Validates that extra-compose.yaml only modifies the "opencode" service
-# and does not define additional services. This ensures the file is used
-# for OpenCode service customization (networks, volumes, environment, etc.)
-# rather than adding new services to the compose project.
-validate_extra_compose() {
-  local file="$1"
-  # Extract the services section and check for non-opencode services
-  awk '
-    BEGIN { in_services = 0; found_services = 0; service_indent = 0 }
-    /^services:/ { in_services = 1; found_services = 1; next }
-    in_services && /^[^[:space:]]/ { in_services = 0 }
-    in_services && /^[[:space:]]+[a-zA-Z_-]+:/ {
-      # Calculate indentation level
-      indent = 0
-      match($0, /^[[:space:]]*/)
-      indent = RLENGTH
-      # Only consider service definitions at the first level under services:
-      # (indentation should be 2 spaces for YAML)
-      if (indent == 2) {
-        service_name = $1
-        gsub(/:/, "", service_name)
-        gsub(/^[[:space:]]+/, "", service_name)
-        if (service_name != "opencode") {
-          print "Error: extra-compose.yaml defines additional service: \"" service_name "\". Only \"opencode\" service modifications are allowed." > "/dev/stderr"
-          exit 1
-        }
-      }
-    }
-    END {
-      if (!found_services) {
-        print "Warning: extra-compose.yaml does not contain a services section." > "/dev/stderr"
-      }
-    }
-  ' "$file"
-  return $?
-}
-
-# ------------------------------------------------------------------
 # Argument parsing
 # ------------------------------------------------------------------
 MODEL_PROFILE="" # empty => cloud/third-party mode (no overlay)
 WORKSPACE_ARG=""
 
-# Enumerate available model overlays. Each line is "${prefix}${shortname}".
-# Uses a glob (rather than `ls`) so filenames with unusual characters are
-# handled correctly.
+# Local-model backend from opencode-init.sh; missing file means cpp.
+LOCAL_BACKEND="$(cat "${SCRIPT_DIR}/.local-backend" 2>/dev/null || echo cpp)"
+case "$LOCAL_BACKEND" in
+cpp | dmr) ;;
+*)
+  echo "Error: unknown backend '${LOCAL_BACKEND}' in ${SCRIPT_DIR}/.local-backend (expected cpp or dmr)" >&2
+  exit 1
+  ;;
+esac
+
+# Prints "${prefix}${shortname}" for each overlay of the current backend.
 list_model_overlays() {
   local prefix="${1:-}"
   local f
-  for f in "${SCRIPT_DIR}/models/"*.yaml; do
+  for f in "${SCRIPT_DIR}/models/${LOCAL_BACKEND}/"*.yaml; do
     [[ -f "$f" ]] || continue
     printf '%s%s\n' "$prefix" "$(basename "$f" .yaml)"
   done
@@ -75,15 +41,20 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--model SHORTNAME] [PATH]
 
-  --model, -m SHORTNAME   Local model overlay to load via Docker Model
-                          Runner. If omitted, OpenCode runs without a
+  --model, -m SHORTNAME   Local model overlay to serve via the backend
+                          chosen in opencode-init.sh (llama.cpp or Docker
+                          Model Runner). If omitted, OpenCode runs without a
                           local model and you should configure a cloud /
                           third-party provider in opencode.jsonc
                           (https://opencode.ai/v2/docs/models/).
-                          Available local overlays:
+                          Available local overlays (backend: ${LOCAL_BACKEND}):
 $(list_model_overlays "                            ")
   --help, -h              Show this help and exit.
   PATH                    Project directory (default: current directory).
+
+Environment:
+  OPENCODE_GGUF_DIR       llama.cpp only: host folder holding the GGUF files
+                          (default: /mnt/storage/llama-cpp/models).
 
 Workspace Customization:
   If the workspace directory contains an extra-compose.yaml file, it is
@@ -91,8 +62,8 @@ Workspace Customization:
   service customization (e.g., joining external Docker networks, adding
   volumes, environment variables, etc.).
 
-  Validation: The extra-compose.yaml must NOT define additional services.
-  Only modifications to the "opencode" service are allowed.
+  Validation: extra-compose.yaml may modify existing services (opencode,
+  and llama-server with llama.cpp) but must NOT add new ones.
 
   Example extra-compose.yaml (joining external network):
     services:
@@ -140,8 +111,18 @@ done
 # ------------------------------------------------------------------
 # Local-model preflight (only when --model was given)
 # ------------------------------------------------------------------
-# Returns the full Docker Model Runner identifier from a given overlay yaml
-# (the value of the `model:` key under the top-level `models:` block).
+# cpp: prints the overlay's LLAMA_ARG_MODEL filename, relative to the GGUF dir.
+read_overlay_gguf() {
+  awk '/^[[:space:]]+LLAMA_ARG_MODEL:[[:space:]]+/ {
+    sub(/^[[:space:]]+LLAMA_ARG_MODEL:[[:space:]]+/, "")
+    gsub(/"/, "")
+    sub(/^\/mnt\/storage\/llama-cpp\/models\//, "")
+    print
+    exit
+  }' "$1"
+}
+
+# dmr: prints the overlay's `models.llm_active.model` identifier.
 read_overlay_model_id() {
   awk '/^[[:space:]]+model:[[:space:]]+/ {
     sub(/^[[:space:]]+model:[[:space:]]+/, "")
@@ -150,26 +131,16 @@ read_overlay_model_id() {
   }' "$1"
 }
 
-# Canonical form used by `docker model ps`: strip the "ai/" registry
-# prefix (implicit default that Docker Model Runner omits in output),
-# then lowercase the rest.
+# Matches `docker model ps` output: drops the implicit "ai/" prefix, lowercases.
 normalize_model_id() {
   local id="${1#ai/}"
   printf '%s\n' "${id,,}"
 }
 
-# Returns currently-loaded Docker Model Runner models in canonical short
-# form, one identifier per line. Empty output means "nothing loaded" or
-# "Model Runner unavailable".
-#
-# Docker Model Runner can interleave pull-progress lines (e.g. layer IDs
-# and "Status:", "Successfully", etc.) before the actual `docker model ps`
-# table when the CLI plugin auto-updates on invocation. A naive
-# "skip line 1" parser captures those as bogus model identifiers, so we:
-#   1. Anchor on the literal "MODEL NAME" header to find the real table.
-#   2. Apply a regex sanity filter so only strings that look like model
-#      identifiers (lowercase alphanumerics, optional `name:tag` shape
-#      with a non-empty tag) get through.
+# Prints loaded DMR models (canonical form), one per line; empty if none or
+# DMR is unavailable. The CLI plugin can print pull-progress lines before the
+# table when it auto-updates, so anchor on the "MODEL NAME" header and only
+# accept identifier-shaped values.
 list_loaded_models() {
   docker model ps 2>/dev/null | awk '
     /^MODEL[[:space:]]+NAME/ { in_table = 1; next }
@@ -177,13 +148,9 @@ list_loaded_models() {
   '
 }
 
-# Given a canonical (lowercased) model identifier as reported by
-# `docker model ps`, return the case-preserved name reported by
-# `docker model list`. This indirection is required because
-# `docker model unload` is case-sensitive and only accepts the
-# case-preserved form (e.g. `gemma4:31B`, not `gemma4:31b`).
-# Echoes the canonical input verbatim if no `list` entry matches
-# (so the caller can still attempt the unload).
+# Maps a lowercased `docker model ps` name to the case-preserved name from
+# `docker model list`, which `docker model unload` requires (e.g. `gemma4:31B`).
+# Falls back to the input if no match.
 resolve_to_list_name() {
   local canonical="$1"
   local match
@@ -195,17 +162,39 @@ resolve_to_list_name() {
   printf '%s\n' "${match:-$canonical}"
 }
 
+GGUF_FILE=""
 REQUESTED_MODEL_ID=""
+export OPENCODE_GGUF_DIR="${OPENCODE_GGUF_DIR:-/mnt/storage/llama-cpp/models}"
 
 if [[ -n "$MODEL_PROFILE" ]]; then
-  MODEL_OVERLAY="${SCRIPT_DIR}/models/${MODEL_PROFILE}.yaml"
+  MODEL_OVERLAY="${SCRIPT_DIR}/models/${LOCAL_BACKEND}/${MODEL_PROFILE}.yaml"
   if [[ ! -f "$MODEL_OVERLAY" ]]; then
-    echo "Error: no overlay file for model '${MODEL_PROFILE}' at ${MODEL_OVERLAY}" >&2
+    echo "Error: no ${LOCAL_BACKEND} overlay for model '${MODEL_PROFILE}' at ${MODEL_OVERLAY}" >&2
     echo "Available overlays:" >&2
     list_model_overlays "  " >&2
     exit 1
   fi
+fi
 
+if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
+  GGUF_FILE="$(read_overlay_gguf "$MODEL_OVERLAY")"
+  if [[ -z "$GGUF_FILE" ]]; then
+    echo "Error: could not read 'LLAMA_ARG_MODEL' from ${MODEL_OVERLAY}" >&2
+    exit 1
+  fi
+  if [[ ! -f "${OPENCODE_GGUF_DIR}/${GGUF_FILE}" ]]; then
+    echo "Error: GGUF not found: ${OPENCODE_GGUF_DIR}/${GGUF_FILE}" >&2
+    echo "Download it there, or set OPENCODE_GGUF_DIR." >&2
+    exit 1
+  fi
+
+  # Host GIDs that own /dev/kfd and /dev/dri; compose falls back to 44/992.
+  VIDEO_GID="$(getent group video | cut -d: -f3 || true)"
+  RENDER_GID="$(getent group render | cut -d: -f3 || true)"
+  export VIDEO_GID RENDER_GID MODEL_PROFILE
+fi
+
+if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "dmr" ]]; then
   REQUESTED_MODEL_ID="$(read_overlay_model_id "$MODEL_OVERLAY")"
   if [[ -z "$REQUESTED_MODEL_ID" ]]; then
     echo "Error: could not read the 'model:' field from ${MODEL_OVERLAY}" >&2
@@ -214,9 +203,7 @@ if [[ -n "$MODEL_PROFILE" ]]; then
   REQUESTED_CANONICAL="$(normalize_model_id "$REQUESTED_MODEL_ID")"
 
   loaded="$(list_loaded_models)"
-  # Filter out the requested model (compare in canonical form); what
-  # remains is "other models that are currently loaded and would consume
-  # memory alongside the requested one".
+  # Loaded models other than the requested one.
   others=""
   if [[ -n "$loaded" ]]; then
     others="$(grep -vFx -- "$REQUESTED_CANONICAL" <<<"$loaded" | grep -v '^[[:space:]]*$' || true)"
@@ -238,9 +225,6 @@ if [[ -n "$MODEL_PROFILE" ]]; then
     y | Y | yes | YES)
       while IFS= read -r m; do
         [[ -n "$m" ]] || continue
-        # `docker model ps` reports lowercased names, but
-        # `docker model unload` requires the case-preserved name from
-        # `docker model list` — look it up here.
         target="$(resolve_to_list_name "$m")"
         if [[ "$target" != "$m" ]]; then
           echo "Unloading: ${target}  (loaded as ${m})"
@@ -259,20 +243,16 @@ if [[ -n "$MODEL_PROFILE" ]]; then
 fi
 
 WORKSPACE_DIR="${WORKSPACE_ARG:-.}"
-
-# Resolve to absolute path
 WORKSPACE_DIR="$(cd "${WORKSPACE_DIR}" && pwd)"
-# Name of project is the current folder
 OC_PROJECT_NAME="$(basename "${WORKSPACE_DIR}")"
 
-# Pass host UID/GID at runtime — no rebuild needed
+# entrypoint.sh remaps abc to these at runtime — no rebuild needed.
 PUID="$(id -u)"
 PGID="$(id -g)"
 export PUID=${PUID}
 export PGID=${PGID}
 
-# Ensure host-side directories exist so Docker doesn't create them as
-# directories with root ownership at mount time.
+# Pre-create mount sources so Docker doesn't create them root-owned.
 mkdir -p "${HOME}/OpenCode/container-tmp"
 mkdir -p "${HOME}/OpenCode/development"
 mkdir -p "${HOME}/OpenCode/dot-cache"
@@ -282,16 +262,9 @@ mkdir -p "${HOME}/OpenCode/dot-local"
 mkdir -p "${HOME}/OpenCode/dot-npm"
 mkdir -p "${HOME}/OpenCode/dot-ssh"
 
-# Move (not copy) the canonical .jsonc templates from the script root
-# into OpenCode's default config location (~/.config/opencode/). The
-# script root acts as a transient handoff slot: after the first launch
-# it's empty, and subsequent launches skip the move silently — the
-# already-seeded files at the destination keep being honored by OpenCode.
-# To push an updated config, re-run `opencode-init.sh` to re-copy the
-# canonical templates from the cloned repo into the script root, then
-# `opencode-run.sh` will move them into place on the next launch.
-# In OpenCode v2, CLI/TUI settings are consolidated into cli.json —
-# tui.jsonc is no longer used.
+# Move (not copy) templates left at the script root by opencode-init.sh into
+# dot-config/opencode/, backing up any existing file. After the first launch
+# the slot is empty and this is a no-op; re-run opencode-init.sh to refill it.
 for _pair in "opencode.jsonc.template:opencode.jsonc" "cli.json.template:cli.json"; do
   _src_name="${_pair%%:*}"
   _dst_name="${_pair##*:}"
@@ -335,10 +308,8 @@ fi
 SSH_DIR="${HOME}/OpenCode/dot-ssh"
 KEY_PATH="${SSH_DIR}/id_opencode"
 
-# Create the directory if it is missing
 mkdir -p -m 700 "$SSH_DIR"
 
-# Only generate a key when it does not already exist
 if [ ! -f "$KEY_PATH" ]; then
   echo "No SSH key found at $KEY_PATH."
   read -r -p "Choose key type (rsa4096 / ed25519) – press Enter for rsa4096: " _ssh_key_type
@@ -363,7 +334,6 @@ if [ ! -f "$KEY_PATH" ]; then
     ;;
   esac
 
-  # Secure the private key
   chmod 600 "$KEY_PATH"
 
   echo "Generated SSH key at $KEY_PATH."
@@ -371,29 +341,16 @@ else
   echo "SSH key already exists at $KEY_PATH – skipping generation."
 fi
 
-# Workspace compose file detection. If the workspace directory contains an
-# extra-compose.yaml file, it is merged into the compose invocation. This
-# enables per-project OpenCode service customization (e.g., joining external
-# Docker networks, adding volumes, environment variables, etc.).
-#
-# Validation: The extra-compose.yaml must NOT define additional services.
-# Only modifications to the "opencode" service are allowed.
-WORKSPACE_COMPOSE="${WORKSPACE_DIR}/extra-compose.yaml"
 EXTRA_COMPOSE=""
-if [[ -f "$WORKSPACE_COMPOSE" ]]; then
-  # Validate the extra-compose.yaml file
-  if ! validate_extra_compose "$WORKSPACE_COMPOSE"; then
-    echo "Error: extra-compose.yaml validation failed. Exiting." >&2
-    exit 1
-  fi
-  EXTRA_COMPOSE="$WORKSPACE_COMPOSE"
+if [[ -f "${WORKSPACE_DIR}/extra-compose.yaml" ]]; then
+  EXTRA_COMPOSE="${WORKSPACE_DIR}/extra-compose.yaml"
 fi
 
 echo "Starting OpenCode in container..."
 echo "  Workspace: ${WORKSPACE_DIR}"
 echo "  Config:    ${HOME}/OpenCode/dot-config/"
 if [[ -n "$MODEL_PROFILE" ]]; then
-  echo "  Model:     ${MODEL_PROFILE} -> ${REQUESTED_MODEL_ID}"
+  echo "  Model:     ${MODEL_PROFILE} (${LOCAL_BACKEND}) -> ${GGUF_FILE:-${REQUESTED_MODEL_ID}}"
 else
   echo "  Model:     (none — cloud/third-party mode; see opencode.jsonc)"
 fi
@@ -410,19 +367,103 @@ export OC_PROJECT_NAME
 export DIRECTORY_ID
 cd "${SCRIPT_DIR}"
 
-# Build the compose invocation. The base compose file has no `models:`
-# bindings; if a local model was selected, merge in the matching overlay
-# so Docker Model Runner sees exactly one binding (and loads exactly one
-# model into memory). If no --model was given, launch without an overlay
-# and let OpenCode use whatever provider opencode.jsonc points at.
+# The base file has no model backend. With --model, cpp adds the llama-server
+# service; every backend adds its one overlay. extra-compose.yaml goes last.
 COMPOSE_ARGS=(-f docker-compose.yaml)
+if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
+  COMPOSE_ARGS+=(-f docker-compose.llama-cpp.yaml)
+fi
 if [[ -n "$MODEL_PROFILE" ]]; then
-  COMPOSE_ARGS+=(-f "models/${MODEL_PROFILE}.yaml")
+  COMPOSE_ARGS+=(-f "models/${LOCAL_BACKEND}/${MODEL_PROFILE}.yaml")
 fi
 
-# Add workspace compose file to compose args if it exists
+# Optional per-project extra-compose.yaml may modify services but not add any.
 if [[ -n "$EXTRA_COMPOSE" ]]; then
+  base_services="$(docker compose "${COMPOSE_ARGS[@]}" config --services)"
   COMPOSE_ARGS+=(-f "$EXTRA_COMPOSE")
+  all_services="$(docker compose "${COMPOSE_ARGS[@]}" config --services)"
+  if added="$(grep -vxF -f <(printf '%s\n' "$base_services") <<<"$all_services")"; then
+    echo "Error: extra-compose.yaml adds service(s): ${added//$'\n'/, }. It may only modify existing services." >&2
+    exit 1
+  fi
 fi
 
-docker compose "${COMPOSE_ARGS[@]}" run --rm opencode
+RUN_ARGS=(run --rm)
+
+if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
+  # llama.cpp sessions are labeled so the last one out stops llama-server.
+  RUN_ARGS+=(-l opencode.uses-llama=true)
+
+  count_llama_sessions() {
+    docker ps -q --filter label=opencode.uses-llama=true | wc -l
+  }
+
+  # shortcut: a session that exits while another is still starting can stop
+  # the server under it; add a lock if concurrent launches become common.
+  stop_llama_if_unused() {
+    if [[ "$(count_llama_sessions)" -eq 0 ]]; then
+      echo "No other OpenCode sessions use llama-server — stopping it."
+      docker stop llama-server >/dev/null 2>&1 || true
+      docker rm llama-server >/dev/null 2>&1 || true
+    else
+      echo "Other OpenCode sessions still use llama-server — leaving it running."
+    fi
+  }
+
+  # Reuse only if the running container matches the current config exactly
+  # (Compose's config hash), so edited overlay flags aren't silently ignored.
+  running="$(docker inspect -f '{{if .State.Running}}{{index .Config.Labels "opencode.model"}} {{index .Config.Labels "com.docker.compose.config-hash"}}{{end}}' llama-server 2>/dev/null || true)"
+  running_model="${running% *}"
+  running_hash="${running##* }"
+  wanted_hash="$(docker compose "${COMPOSE_ARGS[@]}" config --hash llama-server | awk '{print $2}')"
+  start_llama=1
+  if [[ -n "$running" && "$running_hash" == "$wanted_hash" ]]; then
+    echo "Reusing running llama-server (${MODEL_PROFILE})."
+    start_llama=0
+  elif [[ -n "$running" ]]; then
+    sessions="$(count_llama_sessions)"
+    if [[ "$running_model" == "$MODEL_PROFILE" ]]; then
+      echo "llama-server is running '${running_model}' with an older config."
+    else
+      echo "llama-server is running '${running_model}'; you requested '${MODEL_PROFILE}'."
+    fi
+    if [[ "$sessions" -gt 0 ]]; then
+      echo "${sessions} other OpenCode session(s) use it and will lose their model."
+    fi
+    read -r -p "Restart llama-server with '${MODEL_PROFILE}'? [y/N]: " _ans
+    case "$_ans" in
+    y | Y | yes | YES) ;;
+    *)
+      echo "Aborted."
+      exit 1
+      ;;
+    esac
+  fi
+
+  if [[ "$start_llama" -eq 1 ]]; then
+    docker compose "${COMPOSE_ARGS[@]}" up -d --force-recreate llama-server
+  fi
+  trap stop_llama_if_unused EXIT
+
+  echo -n "Waiting for llama-server to load the model"
+  for ((i = 0; i < 150; i++)); do
+    if docker exec llama-server curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+      break
+    fi
+    if [[ "$(docker inspect -f '{{.State.Running}}' llama-server 2>/dev/null)" != "true" ]]; then
+      echo
+      echo "Error: llama-server exited. Last log lines:" >&2
+      docker logs --tail 30 llama-server >&2 || true
+      exit 1
+    fi
+    echo -n "."
+    sleep 2
+  done
+  echo
+  if ((i == 150)); then
+    echo "Error: llama-server not healthy after 5 minutes. Check 'docker logs llama-server'." >&2
+    exit 1
+  fi
+fi
+
+docker compose "${COMPOSE_ARGS[@]}" "${RUN_ARGS[@]}" opencode
