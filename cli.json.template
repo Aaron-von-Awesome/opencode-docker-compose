@@ -42,6 +42,6 @@
     "image_preview": false
   },
   "keybinds": {
-      "leader": "ctrl+space"
+    "leader": "ctrl+space"
   }
 }
