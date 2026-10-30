@@ -24,7 +24,7 @@
   "snapshots": true,
 
   // Automatically compact to avoid exceeding the context limit
-"compaction": {
+  "compaction": {
     "auto": true,
     "keep": { "tokens": 24000 },
     "buffer": 16000,
@@ -48,11 +48,9 @@
     { "action": "shell", "resource": "git push *", "effect": "deny" },
   ],
 
-  // Only allow the dynamically-bound "active" provider. The active model
-  // is selected at container start via `opencode-run.sh --model <shortname>`,
-  // which merges the matching `models/<shortname>.yaml` overlay. The overlay
-  // populates ACTIVE_MODEL_URL, ACTIVE_MODEL_NAME, and ACTIVE_MODEL_DISPLAY_NAME
-  // so this single provider block adapts to whichever model is bound.
+  // Only allow the "active" provider. With `opencode-run.sh --model`, the
+  // merged compose files set ACTIVE_MODEL_URL, ACTIVE_MODEL_NAME, and
+  // ACTIVE_MODEL_DISPLAY_NAME, so this one block fits whichever model is bound.
   "policies": [
     { "action": "provider.use", "resource": "*", "effect": "deny" },
     { "action": "provider.use", "resource": "active", "effect": "allow" }
