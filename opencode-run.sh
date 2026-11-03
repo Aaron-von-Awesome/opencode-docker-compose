@@ -441,7 +441,7 @@ if [[ -n "$EXTRA_COMPOSE" ]]; then
   # Compose resolves extends:/include: here, so the approved copy loads no
   # other file the agent could edit later. Its `name:` would override the
   # project name (opencode-va), so it's dropped.
-  if ! docker compose --project-directory "$SCRIPT_DIR" -f "$EXTRA_COMPOSE" config --no-interpolate --no-normalize --no-consistency |
+  if ! docker compose --project-directory "$SCRIPT_DIR" -f "$EXTRA_COMPOSE" config --no-interpolate --no-normalize --no-consistency --no-path-resolution |
     grep -v '^name:' >"$_tmp"; then
     rm "$_tmp"
     echo "Error: docker compose can't read ${EXTRA_COMPOSE}." >&2

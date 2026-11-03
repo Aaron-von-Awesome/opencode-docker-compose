@@ -195,9 +195,13 @@ branches, PRs, or tags in current history; no CI to satisfy.
   changed content needs a y/N: the launcher copies it to
   `~/OpenCode/.approved-extra-compose/<sha256>.yaml` and merges that copy
   (approved once per content; no TOCTOU). The copy is
-  `docker compose config --no-interpolate --no-normalize --no-consistency`
-  output (minus `name:`, which would override `opencode-va`), so
-  `extends:`/`include:` targets are inlined at approval. It then compares
+  `docker compose config --no-interpolate --no-normalize --no-consistency
+  --no-path-resolution` output (minus `name:`, which would override
+  `opencode-va`), so `extends:`/`include:` targets are inlined at approval.
+  `--no-path-resolution` keeps paths as written: without it, compose treats
+  `${WORKSPACE_DIR}/.env` as relative and prefixes `~/OpenCode/`, which
+  breaks once the variable expands to an absolute path. `${WORKSPACE_DIR}`
+  paths now survive approval and point into the workspace. It then compares
   `docker compose config --services` with and without it and rejects any new service (e.g. `kiwifs`).
   Modifying existing services (`opencode`, and `llama-server` on cpp) is
   allowed. Relative paths in it resolve against `~/OpenCode/` (first `-f`
