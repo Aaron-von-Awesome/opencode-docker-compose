@@ -11,32 +11,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIRECTORY_ID="$(echo -n "${SCRIPT_DIR}+${HOSTNAME}" | sha512sum | cut -c1-12)"
 
-# ------------------------------------------------------------------
-# Argument parsing
-# ------------------------------------------------------------------
-MODEL_PROFILE="" # empty => cloud/third-party mode (no overlay)
-WORKSPACE_ARG=""
-
-# Local-model backend from opencode-init.sh; missing file means cpp.
-LOCAL_BACKEND="$(cat "${SCRIPT_DIR}/.local-backend" 2>/dev/null || echo cpp)"
-case "$LOCAL_BACKEND" in
-cpp | dmr) ;;
-*)
-  echo "Error: unknown backend '${LOCAL_BACKEND}' in ${SCRIPT_DIR}/.local-backend (expected cpp or dmr)" >&2
-  exit 1
-  ;;
-esac
-
-# Prints "${prefix}${shortname}" for each overlay of the current backend.
-list_model_overlays() {
-  local prefix="${1:-}"
-  local f
-  for f in "${SCRIPT_DIR}/models/${LOCAL_BACKEND}/"*.yaml; do
-    [[ -f "$f" ]] || continue
-    printf '%s%s\n' "$prefix" "$(basename "$f" .yaml)"
-  done
-}
-
+# shellcheck source=llama-cpp-lib.sh
+source "${SCRIPT_DIR}/llama-cpp-lib.sh"
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [--model SHORTNAME] [PATH]
@@ -48,7 +24,7 @@ Usage: $(basename "$0") [--model SHORTNAME] [PATH]
                           third-party provider in opencode.jsonc
                           (https://opencode.ai/v2/docs/models/).
                           Available local overlays (backend: ${LOCAL_BACKEND}):
-$(list_model_overlays "                            ")
+$(list_model_overlays "$LOCAL_BACKEND" "                            ")
   --help, -h              Show this help and exit.
   PATH                    Project directory (default: current directory).
 
@@ -111,17 +87,6 @@ done
 # ------------------------------------------------------------------
 # Local-model preflight (only when --model was given)
 # ------------------------------------------------------------------
-# cpp: prints the overlay's LLAMA_ARG_MODEL filename, relative to the GGUF dir.
-read_overlay_gguf() {
-  awk '/^[[:space:]]+LLAMA_ARG_MODEL:[[:space:]]+/ {
-    sub(/^[[:space:]]+LLAMA_ARG_MODEL:[[:space:]]+/, "")
-    gsub(/"/, "")
-    sub(/^\/mnt\/storage\/llama-cpp\/models\//, "")
-    print
-    exit
-  }' "$1"
-}
-
 # dmr: prints the overlay's `models.llm_active.model` identifier.
 read_overlay_model_id() {
   awk '/^[[:space:]]+model:[[:space:]]+/ {
@@ -164,34 +129,27 @@ resolve_to_list_name() {
 
 GGUF_FILE=""
 REQUESTED_MODEL_ID=""
-export OPENCODE_GGUF_DIR="${OPENCODE_GGUF_DIR:-/mnt/storage/llama-cpp/models}"
 
 if [[ -n "$MODEL_PROFILE" ]]; then
   MODEL_OVERLAY="${SCRIPT_DIR}/models/${LOCAL_BACKEND}/${MODEL_PROFILE}.yaml"
   if [[ ! -f "$MODEL_OVERLAY" ]]; then
     echo "Error: no ${LOCAL_BACKEND} overlay for model '${MODEL_PROFILE}' at ${MODEL_OVERLAY}" >&2
     echo "Available overlays:" >&2
-    list_model_overlays "  " >&2
+    list_model_overlays "$LOCAL_BACKEND" "  " >&2
     exit 1
   fi
 fi
 
 if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
-  GGUF_FILE="$(read_overlay_gguf "$MODEL_OVERLAY")"
-  if [[ -z "$GGUF_FILE" ]]; then
-    echo "Error: could not read 'LLAMA_ARG_MODEL' from ${MODEL_OVERLAY}" >&2
-    exit 1
-  fi
-  if [[ ! -f "${OPENCODE_GGUF_DIR}/${GGUF_FILE}" ]]; then
-    echo "Error: GGUF not found: ${OPENCODE_GGUF_DIR}/${GGUF_FILE}" >&2
-    echo "Download it there, or set OPENCODE_GGUF_DIR." >&2
-    exit 1
-  fi
+  llama_preflight "$MODEL_OVERLAY"
 
-  # Host GIDs that own /dev/kfd and /dev/dri; compose falls back to 44/992.
-  VIDEO_GID="$(getent group video | cut -d: -f3 || true)"
-  RENDER_GID="$(getent group render | cut -d: -f3 || true)"
-  export VIDEO_GID RENDER_GID MODEL_PROFILE
+  # Passed to OpenCode with `run -e`; the display name is the overlay's
+  # llama-server label, so overlays don't define an opencode service.
+  ACTIVE_MODEL_URL="http://llama-server:8080/v1"
+  ACTIVE_MODEL_NAME="$MODEL_PROFILE"
+  ACTIVE_MODEL_DISPLAY_NAME="$(awk -F'"' '/^[[:space:]]+opencode\.display-name:/ {print $2; exit}' "$MODEL_OVERLAY")"
+  ACTIVE_MODEL_DISPLAY_NAME="${ACTIVE_MODEL_DISPLAY_NAME:-$MODEL_PROFILE}"
+  export ACTIVE_MODEL_URL ACTIVE_MODEL_NAME ACTIVE_MODEL_DISPLAY_NAME
 fi
 
 if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "dmr" ]]; then
@@ -241,7 +199,6 @@ if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "dmr" ]]; then
     esac
   fi
 fi
-
 WORKSPACE_DIR="${WORKSPACE_ARG:-.}"
 WORKSPACE_DIR="$(cd "${WORKSPACE_DIR}" && pwd)"
 OC_PROJECT_NAME="$(basename "${WORKSPACE_DIR}")"
@@ -390,6 +347,11 @@ fi
 
 RUN_ARGS=(run --rm)
 
+# Name-only -e reads the exported values, keeping them off the command line.
+if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
+  RUN_ARGS+=(-e ACTIVE_MODEL_URL -e ACTIVE_MODEL_NAME -e ACTIVE_MODEL_DISPLAY_NAME)
+fi
+
 if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
   # llama.cpp sessions are labeled so the last one out stops llama-server.
   RUN_ARGS+=(-l opencode.uses-llama=true)
@@ -409,61 +371,14 @@ if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
       echo "Other OpenCode sessions still use llama-server — leaving it running."
     fi
   }
-
-  # Reuse only if the running container matches the current config exactly
-  # (Compose's config hash), so edited overlay flags aren't silently ignored.
-  running="$(docker inspect -f '{{if .State.Running}}{{index .Config.Labels "opencode.model"}} {{index .Config.Labels "com.docker.compose.config-hash"}}{{end}}' llama-server 2>/dev/null || true)"
-  running_model="${running% *}"
-  running_hash="${running##* }"
-  wanted_hash="$(docker compose "${COMPOSE_ARGS[@]}" config --hash llama-server | awk '{print $2}')"
-  start_llama=1
-  if [[ -n "$running" && "$running_hash" == "$wanted_hash" ]]; then
-    echo "Reusing running llama-server (${MODEL_PROFILE})."
-    start_llama=0
-  elif [[ -n "$running" ]]; then
-    sessions="$(count_llama_sessions)"
-    if [[ "$running_model" == "$MODEL_PROFILE" ]]; then
-      echo "llama-server is running '${running_model}' with an older config."
-    else
-      echo "llama-server is running '${running_model}'; you requested '${MODEL_PROFILE}'."
-    fi
-    if [[ "$sessions" -gt 0 ]]; then
-      echo "${sessions} other OpenCode session(s) use it and will lose their model."
-    fi
-    read -r -p "Restart llama-server with '${MODEL_PROFILE}'? [y/N]: " _ans
-    case "$_ans" in
-    y | Y | yes | YES) ;;
-    *)
-      echo "Aborted."
-      exit 1
-      ;;
-    esac
+  sessions="$(count_llama_sessions)"
+  warning=""
+  if [[ "$sessions" -gt 0 ]]; then
+    warning="${sessions} other OpenCode session(s) use it and will lose their model."
   fi
-
-  if [[ "$start_llama" -eq 1 ]]; then
-    docker compose "${COMPOSE_ARGS[@]}" up -d --force-recreate llama-server
-  fi
+  llama_start_or_reuse llama-server "$warning" "${COMPOSE_ARGS[@]}" || [[ $? -eq 10 ]]
   trap stop_llama_if_unused EXIT
-
-  echo -n "Waiting for llama-server to load the model"
-  for ((i = 0; i < 150; i++)); do
-    if docker exec llama-server curl -sf http://localhost:8080/health >/dev/null 2>&1; then
-      break
-    fi
-    if [[ "$(docker inspect -f '{{.State.Running}}' llama-server 2>/dev/null)" != "true" ]]; then
-      echo
-      echo "Error: llama-server exited. Last log lines:" >&2
-      docker logs --tail 30 llama-server >&2 || true
-      exit 1
-    fi
-    echo -n "."
-    sleep 2
-  done
-  echo
-  if ((i == 150)); then
-    echo "Error: llama-server not healthy after 5 minutes. Check 'docker logs llama-server'." >&2
-    exit 1
-  fi
+  llama_wait_healthy llama-server "docker logs llama-server"
 fi
 
 docker compose "${COMPOSE_ARGS[@]}" "${RUN_ARGS[@]}" opencode

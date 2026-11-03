@@ -1,5 +1,6 @@
 # Merged by opencode-run.sh only with --model on the cpp backend.
-# models/cpp/<shortname>.yaml adds LLAMA_ARG_MODEL and per-model flags.
+# models/cpp/<shortname>.yaml adds LLAMA_ARG_MODEL, per-model flags, and the
+# opencode.display-name label (opencode-run.sh passes it to OpenCode).
 # No host port: reachable only on opencode-net. Add `ports:` here if needed.
 services:
   llama-server:
@@ -23,8 +24,3 @@ services:
       LLAMA_ARG_ALIAS: "${MODEL_PROFILE}"
     networks:
       opencode-net:
-
-  opencode:
-    environment:
-      ACTIVE_MODEL_URL: "http://llama-server:8080/v1"
-      ACTIVE_MODEL_NAME: "${MODEL_PROFILE}"

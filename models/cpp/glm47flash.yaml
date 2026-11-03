@@ -1,9 +1,7 @@
 services:
-  opencode:
-    environment:
-      ACTIVE_MODEL_DISPLAY_NAME: "GLM 4.7 Flash"
-
   llama-server:
+    labels:
+      opencode.display-name: "GLM 4.7 Flash"
     environment:
       LLAMA_ARG_MODEL: "/mnt/storage/llama-cpp/models/GLM-4.7-Flash-Q4_K_M.gguf"
     command:
@@ -13,3 +11,5 @@ services:
       - "0.95"
       - "--repeat-penalty"
       - "1.0"
+      - "--parallel"
+      - "3"
