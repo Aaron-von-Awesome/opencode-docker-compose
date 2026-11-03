@@ -1,0 +1,15 @@
+# Merged by llama-cpp-run.sh on top of docker-compose.llama-cpp.yaml and one
+# models/cpp/<shortname>.yaml, as its own compose project (llama-cpp-standalone).
+services:
+  llama-server:
+    container_name: llama-server-standalone
+    restart: unless-stopped
+    ports:
+      - "${LLAMA_PORT:-8080}:8080"
+    environment:
+      # No value: passed through only if set (llama-cpp-run.sh exports it when
+      # LLAMA_API_KEY is non-empty), so an empty key never reaches llama.cpp.
+      LLAMA_ARG_API_KEY:
+
+networks:
+  opencode-net:

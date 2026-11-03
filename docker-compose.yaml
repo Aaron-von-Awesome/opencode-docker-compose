@@ -26,14 +26,14 @@ services:
       - "primeradiant.com:127.0.0.1" # Disable Super Powers Skill beacon
     volumes:
       - "${WORKSPACE_DIR:-.}:/home/abc/${OC_PROJECT_NAME:-workspace}"
-      - "${HOME}/OpenCode/dot-config/:/home/abc/.config/"
-      - "${HOME}/OpenCode/dot-local/:/home/abc/.local/"
-      - "${HOME}/OpenCode/dot-cache/:/home/abc/.cache/"
-      - "${HOME}/OpenCode/dot-npm/:/home/abc/.npm/"
-      - "${HOME}/OpenCode/dot-ssh/:/home/abc/.ssh/"
-      - "${HOME}/OpenCode/dot-gitconfig/.gitconfig:/home/abc/.gitconfig"
-      # - "${HOME}/OpenCode/development/:/home/abc/development/"  # optional: additional global folder
-      # - "${HOME}/OpenCode/container-tmp/:/tmp/"  # optional: add tmp/ as persistent storage
+      - "./dot-config/:/home/abc/.config/"
+      - "./dot-local/:/home/abc/.local/"
+      - "./dot-cache/:/home/abc/.cache/"
+      - "./dot-npm/:/home/abc/.npm/"
+      - "./dot-ssh/:/home/abc/.ssh/"
+      - "./dot-gitconfig/.gitconfig:/home/abc/.gitconfig"
+      # - "./development/:/home/abc/development/"  # optional: additional global folder
+      # - "./container-tmp/:/tmp/"  # optional: add tmp/ as persistent storage
     working_dir: "/home/abc/${OC_PROJECT_NAME:-workspace}"
     environment:
       PUID: "${PUID:-1000}"

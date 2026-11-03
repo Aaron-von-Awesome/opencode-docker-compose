@@ -3,16 +3,44 @@
 # Path defaults to the current directory. --model merges
 # models/<backend>/<shortname>.yaml, where <backend> (cpp = llama.cpp,
 # dmr = Docker Model Runner) is read from .local-backend (set by
-# opencode-init.sh). Without --model, OpenCode uses the provider in
-# opencode.jsonc (cloud mode). --help lists the available shortnames.
+# opencode-init.sh). With the remote backend, --model is not used: OpenCode
+# connects to the standalone llama-server in .remote-llama-url. Otherwise,
+# without --model, OpenCode uses the provider in opencode.jsonc (cloud mode).
+# --help lists the available shortnames.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIRECTORY_ID="$(echo -n "${SCRIPT_DIR}+${HOSTNAME}" | sha512sum | cut -c1-12)"
+DIRECTORY_ID="$(echo -n "${HOSTNAME}" | sha512sum | cut -c1-12)"
 
 # shellcheck source=llama-cpp-lib.sh
 source "${SCRIPT_DIR}/llama-cpp-lib.sh"
+
+# ------------------------------------------------------------------
+# Argument parsing
+# ------------------------------------------------------------------
+MODEL_PROFILE="" # empty => cloud/third-party mode (no overlay)
+WORKSPACE_ARG=""
+
+# Local-model backend from opencode-init.sh; missing file means cpp.
+LOCAL_BACKEND="$(cat "${SCRIPT_DIR}/.local-backend" 2>/dev/null || echo cpp)"
+case "$LOCAL_BACKEND" in
+cpp | dmr | remote) ;;
+*)
+  echo "Error: unknown backend '${LOCAL_BACKEND}' in ${SCRIPT_DIR}/.local-backend (expected cpp, dmr or remote)" >&2
+  exit 1
+  ;;
+esac
+
+# remote: connect to a standalone llama-server (llama-cpp-run.sh) instead of
+# starting one. Only applies in local config mode; a stale .local-backend
+# left behind after switching to cloud is ignored.
+CONFIG_MODE="$(cat "${SCRIPT_DIR}/.config-mode" 2>/dev/null || true)"
+REMOTE_LLAMA=0
+if [[ "$LOCAL_BACKEND" == "remote" && "$CONFIG_MODE" == "local" ]]; then
+  REMOTE_LLAMA=1
+fi
+
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [--model SHORTNAME] [PATH]
@@ -23,6 +51,8 @@ Usage: $(basename "$0") [--model SHORTNAME] [PATH]
                           local model and you should configure a cloud /
                           third-party provider in opencode.jsonc
                           (https://opencode.ai/v2/docs/models/).
+                          Not used with the remote backend: OpenCode connects
+                          to whatever model the standalone server is serving.
                           Available local overlays (backend: ${LOCAL_BACKEND}):
 $(list_model_overlays "$LOCAL_BACKEND" "                            ")
   --help, -h              Show this help and exit.
@@ -130,6 +160,56 @@ resolve_to_list_name() {
 GGUF_FILE=""
 REQUESTED_MODEL_ID=""
 
+# The cloud template has no "active" provider, so a local model would load
+# onto the GPU and never be used.
+if [[ -n "$MODEL_PROFILE" && "$CONFIG_MODE" == "cloud" ]]; then
+  echo "Error: --model isn't used in cloud mode. To switch to local, delete ${SCRIPT_DIR}/.config-mode and re-run opencode-init.sh." >&2
+  exit 1
+fi
+
+if [[ "$REMOTE_LLAMA" -eq 1 ]]; then
+  if [[ -n "$MODEL_PROFILE" ]]; then
+    echo "Error: --model isn't used with the remote backend; pick the model on the server (llama-cpp-run.sh --model ...)." >&2
+    exit 1
+  fi
+  ACTIVE_MODEL_URL="$(cat "${SCRIPT_DIR}/.remote-llama-url" 2>/dev/null || true)"
+  ACTIVE_MODEL_API_KEY="$(cat "${SCRIPT_DIR}/.remote-llama-key" 2>/dev/null || true)"
+  if [[ -z "$ACTIVE_MODEL_URL" ]]; then
+    echo "Error: no server URL in ${SCRIPT_DIR}/.remote-llama-url. Delete .local-backend and re-run opencode-init.sh." >&2
+    exit 1
+  fi
+  # host.docker.internal only resolves inside the container; probe via localhost.
+  probe_url="${ACTIVE_MODEL_URL/host.docker.internal/localhost}"
+  probe_url="${probe_url%/}"
+  # The key goes in via stdin (-H @-) so it never shows up in `ps`.
+  remote_curl() {
+    if [[ -n "$ACTIVE_MODEL_API_KEY" ]]; then
+      printf 'Authorization: Bearer %s\n' "$ACTIVE_MODEL_API_KEY" | curl -H @- "$@"
+    else
+      curl "$@"
+    fi
+  }
+  models_json="$(remote_curl -sf --max-time 5 "${probe_url}/models" || true)"
+  if [[ -z "$models_json" ]]; then
+    echo "Error: can't reach the llama.cpp server at ${probe_url}/models (wrong URL or server down)." >&2
+    exit 1
+  fi
+  # /models stays open even with an API key, so check the key on a protected
+  # path: a GET there is 401 with a bad/missing key, 404/405 with a good one.
+  auth_code="$(remote_curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${probe_url}/chat/completions" || true)"
+  if [[ "$auth_code" == "401" ]]; then
+    echo "Error: the llama.cpp server at ${probe_url} rejected the API key. Fix ${SCRIPT_DIR}/.remote-llama-key (or LLAMA_API_KEY on the server)." >&2
+    exit 1
+  fi
+  ACTIVE_MODEL_NAME="$(grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' <<<"$models_json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
+  if [[ -z "$ACTIVE_MODEL_NAME" ]]; then
+    echo "Error: the server at ${probe_url}/models reports no model." >&2
+    exit 1
+  fi
+  ACTIVE_MODEL_DISPLAY_NAME="$ACTIVE_MODEL_NAME"
+  export ACTIVE_MODEL_URL ACTIVE_MODEL_NAME ACTIVE_MODEL_DISPLAY_NAME ACTIVE_MODEL_API_KEY
+fi
+
 if [[ -n "$MODEL_PROFILE" ]]; then
   MODEL_OVERLAY="${SCRIPT_DIR}/models/${LOCAL_BACKEND}/${MODEL_PROFILE}.yaml"
   if [[ ! -f "$MODEL_OVERLAY" ]]; then
@@ -199,6 +279,7 @@ if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "dmr" ]]; then
     esac
   fi
 fi
+
 WORKSPACE_DIR="${WORKSPACE_ARG:-.}"
 WORKSPACE_DIR="$(cd "${WORKSPACE_DIR}" && pwd)"
 OC_PROJECT_NAME="$(basename "${WORKSPACE_DIR}")"
@@ -210,14 +291,9 @@ export PUID=${PUID}
 export PGID=${PGID}
 
 # Pre-create mount sources so Docker doesn't create them root-owned.
-mkdir -p "${HOME}/OpenCode/container-tmp"
-mkdir -p "${HOME}/OpenCode/development"
-mkdir -p "${HOME}/OpenCode/dot-cache"
-mkdir -p "${HOME}/OpenCode/dot-config/opencode"
-mkdir -p "${HOME}/OpenCode/dot-gitconfig"
-mkdir -p "${HOME}/OpenCode/dot-local"
-mkdir -p "${HOME}/OpenCode/dot-npm"
-mkdir -p "${HOME}/OpenCode/dot-ssh"
+mkdir -p "${SCRIPT_DIR}"/{container-tmp,development,dot-cache,dot-config/opencode,dot-gitconfig,dot-local,dot-npm}
+# Own line so only dot-ssh (private key) gets 700.
+mkdir -p -m 700 "${SCRIPT_DIR}/dot-ssh"
 
 # Move (not copy) templates left at the script root by opencode-init.sh into
 # dot-config/opencode/, backing up any existing file. After the first launch
@@ -226,7 +302,7 @@ for _pair in "opencode.jsonc.template:opencode.jsonc" "cli.json.template:cli.jso
   _src_name="${_pair%%:*}"
   _dst_name="${_pair##*:}"
   _src="${SCRIPT_DIR}/${_src_name}"
-  _dst="${HOME}/OpenCode/dot-config/opencode/${_dst_name}"
+  _dst="${SCRIPT_DIR}/dot-config/opencode/${_dst_name}"
   if [ -f "$_src" ]; then
     if [ -f "$_dst" ]; then
       read -r -p "  ${_dst_name} exists. Overwrite? [y/N]: " _ans
@@ -238,21 +314,38 @@ for _pair in "opencode.jsonc.template:opencode.jsonc" "cli.json.template:cli.jso
         ;;
       esac
       _ts="$(date +%Y%m%d-%H%M%S)"
-      cp "$_dst" "${HOME}/OpenCode/dot-config/opencode/${_ts}_${_dst_name}.backup"
+      cp "$_dst" "${SCRIPT_DIR}/dot-config/opencode/${_ts}_${_dst_name}.backup"
     fi
     mv -f "$_src" "$_dst"
   fi
 done
 unset _pair _src_name _dst_name _src _dst _ts _ans
 
+# An opencode.jsonc from before the remote backend has no apiKey line, so
+# OpenCode would send no key even though the probe above passed.
+if [[ "$REMOTE_LLAMA" -eq 1 && -n "$ACTIVE_MODEL_API_KEY" ]] &&
+  ! grep -q ACTIVE_MODEL_API_KEY "${SCRIPT_DIR}/dot-config/opencode/opencode.jsonc" 2>/dev/null; then
+  echo "Error: ${SCRIPT_DIR}/dot-config/opencode/opencode.jsonc has no apiKey line, so OpenCode can't send the API key." >&2
+  echo "Re-run opencode-init.sh and answer 'y' to overwrite opencode.jsonc on the next launch." >&2
+  exit 1
+fi
+
 # ------------------------------------------------------------------
 # Git config bootstrap – ensure a .gitconfig exists for the container
 # ------------------------------------------------------------------
-export GIT_CONFIG_GLOBAL="${HOME}/OpenCode/dot-gitconfig/.gitconfig"
-if [ ! -f "${HOME}/OpenCode/dot-gitconfig/.gitconfig" ]; then
-  echo "No .gitconfig found at ${HOME}/OpenCode/dot-gitconfig/.gitconfig."
-  read -r -p "Enter your full name (first and last): " _git_name
-  read -r -p "Enter your email address: " _git_email
+export GIT_CONFIG_GLOBAL="${SCRIPT_DIR}/dot-gitconfig/.gitconfig"
+if [ ! -f "${SCRIPT_DIR}/dot-gitconfig/.gitconfig" ]; then
+  echo "No .gitconfig found at ${SCRIPT_DIR}/dot-gitconfig/.gitconfig."
+  while :; do
+    read -r -p "Enter your full name (first and last): " _git_name || exit 1
+    [[ -n "${_git_name// }" ]] && break
+    echo "Name can't be empty."
+  done
+  while :; do
+    read -r -p "Enter your email address: " _git_email || exit 1
+    [[ -n "${_git_email// }" ]] && break
+    echo "Email can't be empty."
+  done
   git config --global user.name "${_git_name}"
   git config --global user.email "${_git_email}"
 else
@@ -262,10 +355,8 @@ fi
 # ------------------------------------------------------------------
 # SSH‑key bootstrap – ensure a key exists for container use
 # ------------------------------------------------------------------
-SSH_DIR="${HOME}/OpenCode/dot-ssh"
+SSH_DIR="${SCRIPT_DIR}/dot-ssh"
 KEY_PATH="${SSH_DIR}/id_opencode"
-
-mkdir -p -m 700 "$SSH_DIR"
 
 if [ ! -f "$KEY_PATH" ]; then
   echo "No SSH key found at $KEY_PATH."
@@ -297,6 +388,9 @@ if [ ! -f "$KEY_PATH" ]; then
 else
   echo "SSH key already exists at $KEY_PATH – skipping generation."
 fi
+# SSH only tries default key names (id_rsa, id_ed25519, ...) on its own.
+# umask 077: ssh rejects a group-writable config (umask 002 would make one).
+[[ -f "${SSH_DIR}/config" ]] || (umask 077 && printf 'IdentityFile ~/.ssh/id_opencode\n' >"${SSH_DIR}/config")
 
 EXTRA_COMPOSE=""
 if [[ -f "${WORKSPACE_DIR}/extra-compose.yaml" ]]; then
@@ -305,9 +399,11 @@ fi
 
 echo "Starting OpenCode in container..."
 echo "  Workspace: ${WORKSPACE_DIR}"
-echo "  Config:    ${HOME}/OpenCode/dot-config/"
+echo "  Config:    ${SCRIPT_DIR}/dot-config/"
 if [[ -n "$MODEL_PROFILE" ]]; then
   echo "  Model:     ${MODEL_PROFILE} (${LOCAL_BACKEND}) -> ${GGUF_FILE:-${REQUESTED_MODEL_ID}}"
+elif [[ "$REMOTE_LLAMA" -eq 1 ]]; then
+  echo "  Model:     ${ACTIVE_MODEL_NAME} (remote) -> ${ACTIVE_MODEL_URL}"
 else
   echo "  Model:     (none — cloud/third-party mode; see opencode.jsonc)"
 fi
@@ -347,9 +443,12 @@ fi
 
 RUN_ARGS=(run --rm)
 
-# Name-only -e reads the exported values, keeping them off the command line.
-if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
+# Name-only -e reads the exported values, keeping the key off the command line.
+if [[ "$REMOTE_LLAMA" -eq 1 || ( -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ) ]]; then
   RUN_ARGS+=(-e ACTIVE_MODEL_URL -e ACTIVE_MODEL_NAME -e ACTIVE_MODEL_DISPLAY_NAME)
+fi
+if [[ "$REMOTE_LLAMA" -eq 1 ]]; then
+  RUN_ARGS+=(-e ACTIVE_MODEL_API_KEY)
 fi
 
 if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
@@ -371,6 +470,7 @@ if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
       echo "Other OpenCode sessions still use llama-server — leaving it running."
     fi
   }
+
   sessions="$(count_llama_sessions)"
   warning=""
   if [[ "$sessions" -gt 0 ]]; then
@@ -382,3 +482,4 @@ if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
 fi
 
 docker compose "${COMPOSE_ARGS[@]}" "${RUN_ARGS[@]}" opencode
+
