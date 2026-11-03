@@ -1,186 +1,113 @@
 # OpenCode V2 + Docker Compose + llama.cpp / Docker Model Runner
 
-A local development environment for OpenCode V2, fully contained in a Docker container, with optional local models served by a llama.cpp (`llama-server`) container (default) or Docker Model Runner. Provides a linuxserver.io-style `abc` user with runtime UID/GID remapping, host-side persistent config and state, and a single-command launch.
+OpenCode V2 in a Docker container, with optional local models from llama.cpp (default) or Docker Model Runner (DMR). The in-container `abc` user is remapped to your UID/GID at runtime, and config and state persist on the host.
 
 ## Prerequisites
 
-- Docker with the Compose plugin (`docker compose ...`)
-- Local mode with llama.cpp (default): an AMD GPU with ROCm (`/dev/kfd`, `/dev/dri`) and the GGUF files in `/mnt/storage/llama-cpp/models` (override with `OPENCODE_GGUF_DIR`)
-- Local mode with Docker Model Runner: Docker Model Runner enabled (`docker model ...`)
+- Docker with the Compose plugin.
+- llama.cpp: an AMD GPU with ROCm (`/dev/kfd`, `/dev/dri`) and GGUF files in `/mnt/storage/llama-cpp/models` (override with `OPENCODE_GGUF_DIR`).
+- DMR: Docker Model Runner enabled.
+- Remote llama.cpp: `curl` on the host.
 
-## First-time setup
-
-Clone the repo, then run the initializer script located in the repository:
+## Setup
 
 ```bash
 ./opencode-init.sh
-```
-
-`opencode-init.sh` does three things:
-
-1. **Copies the project artifacts to `${HOME}/OpenCode/`** — `Dockerfile`, `docker-compose.yaml`, `docker-compose.llama-cpp.yaml`, `entrypoint.sh`, `opencode-run.sh`, `cli.json.template`, the `models/` overlay directory, and anything else in the repo root _except_ `README.md`, `AGENTS.md`, `LICENSE`, anything matching `.git*`, the two `opencode.jsonc.*.template` files, and the initialize script itself. For each file that already exists at the destination you'll be prompted to overwrite (default: skip).
-2. **Prompts for a configuration type** — you choose `[c] Cloud` (third-party provider) or `[l] Local`. The matching template is deployed as `opencode.jsonc.template`. Your choice is saved to `${HOME}/OpenCode/.config-mode`, so re-runs skip the prompt. Delete `.config-mode` and re-run to switch.
-   - **Local only — prompts for a backend:** `[c] llama.cpp` (default, press Enter) or `[d] Docker Model Runner`. Saved to `${HOME}/OpenCode/.local-backend` (`cpp` or `dmr`); delete it and re-run to switch. There is no per-launch override.
-3. **Adds the `opencode` alias to `~/.bashrc`** (if not already present) so you can launch from any directory:
-   ```bash
-   alias opencode='${HOME}/OpenCode/opencode-run.sh'
-   ```
-   After it finishes, run `source ~/.bashrc` or open a new shell to activate.
-
-Safe to re-run — overwrite prompts and the alias-presence check keep it idempotent.
-
-## Quick start
-
-```bash
-# Local model (backend chosen at init: llama.cpp or Docker Model Runner):
-./opencode-run.sh --model ornith15 [/path/to/your/project]
-
-# Cloud / third-party provider configured in opencode.jsonc:
-./opencode-run.sh [/path/to/your/project]
-```
-
-If no path is given, the current directory is used. If no `--model` is given, OpenCode launches without binding any local model — use this when your `opencode.jsonc` is configured for a cloud / third-party provider (see <https://opencode.ai/v2/docs/models/>).
-
-The script:
-
-1. Parses `--model` and the optional workspace path. When `--model` is supplied, validates the overlay exists under `models/<backend>/`. llama.cpp: checks the GGUF exists. DMR: if other models are loaded (`docker model ps`), prompts to unload them.
-2. Computes a `DIRECTORY_ID` to namespace the local image tag (`local/${DIRECTORY_ID}/opencode:latest-stable`).
-3. Bootstraps host-side directories under `${HOME}/OpenCode/...` and seeds config (see below).
-4. On first run, prompts for git identity and generates an SSH key (`id_opencode`).
-5. If the workspace has an `extra-compose.yaml`, checks it adds no services (see [Workspace customization](#workspace-customization)).
-6. llama.cpp only: starts or reuses `llama-server` and waits for it to be healthy (see [llama-server lifecycle](#llama-server-lifecycle)).
-7. Builds the image if needed, then runs `docker compose -f docker-compose.yaml [-f docker-compose.llama-cpp.yaml] [-f models/<backend>/<shortname>.yaml] [-f extra-compose.yaml] run --rm opencode`.
-
-## Convenience: shell alias
-
-`opencode-init.sh` already adds the `opencode` alias to `~/.bashrc` on first-time setup, so you usually don't need to touch this. If you skipped initialization or want to install the alias manually:
-
-```bash
-echo "alias opencode='\${HOME}/OpenCode/opencode-run.sh'" >> ~/.bashrc
 source ~/.bashrc
 ```
 
-(Note the escaped `\${HOME}` — that keeps the variable as-is in the alias definition so it's expanded _at run time_, not when the alias is written.)
+Init is safe to re-run. It:
 
-Once the alias is in place, every form of the launcher works the same way — arguments are passed through unchanged:
+1. Asks for an instance directory (default `~/OpenCode/`) and copies the repo there (asks before overwriting).
+2. Asks **cloud** or **local** and deploys the matching `opencode.jsonc` template. Saved to `~/OpenCode/.config-mode`.
+3. Local only: asks for a backend — `[c]` llama.cpp (default), `[d]` DMR, or `[r]` remote llama.cpp server. Saved to `~/OpenCode/.local-backend`. Remote also asks for the server URL and API key.
+4. Adds an alias named after the lowercased directory to `~/.bashrc` (`~/OpenCode` → `opencode`, `~/OpenCode-llama` → `opencode-llama`).
 
-```bash
-opencode                                  # cloud mode, current directory as workspace
-opencode --model ornith15                 # local model, current directory
-opencode /path/to/your/project            # cloud mode, given project as workspace
-opencode --model ornith15 /path/to/project # local model, given project
-opencode --help                           # show usage and available overlays
-```
+Run init again with another directory to add an instance (e.g. one cloud, one llama.cpp). Each has its own config, state, SSH key and git identity, and they can run at the same time; they share the Docker image and GGUF dir. Only one instance should use the llama.cpp backend. Below, `~/OpenCode/` means the instance directory.
 
-Because the alias is a literal text substitution, anything you'd put on the `./opencode-run.sh` command line works identically with `opencode`. The script's own argument parser handles flag/path ordering.
+To change a saved choice, delete its file and re-run init.
 
-## Model selection
+### Init errors
 
-Two modes:
+Init checks the directory and its alias before copying anything. When a check fails, it stops and nothing changes, so fix the cause and re-run init.
 
-### Local model
+- **Directory inside the repo:** pick a directory outside the clone.
+- **Name can't be an alias:** the directory name may only use letters, digits, `.`, `_` and `-`, so no spaces.
+- **Alias already exists for a different instance:** two directories with the same lowercased name (e.g. `~/OpenCode` and `~/work/opencode`) would need the same alias. The error shows the `~/.bashrc` line number. Pick a different directory name, or delete that line.
+- **Alias would hide a command:** e.g. `~/Docker` would create an alias that hides the `docker` command. Pick a different directory name; there is no override.
+- **Commented-out alias:** a `# alias <name>=...` line still counts, so `~/.bashrc` never gets a second one. If it belongs to a different instance, you get the same error as above and must delete that line or rename the directory. If it belongs to this instance, init finishes but adds no alias; uncomment the line to use it.
 
-The backend is chosen once in `opencode-init.sh` and saved to `~/OpenCode/.local-backend`. Overlays live in `models/<backend>/`, and `--help` lists only the overlays for the saved backend.
-
-| Backend                  | `.local-backend` | Overlays       |
-| ------------------------ | ---------------- | -------------- |
-| llama.cpp (default)      | `cpp`            | `models/cpp/`  |
-| Docker Model Runner      | `dmr`            | `models/dmr/`  |
-
-#### llama.cpp (default)
-
-One `llama-server` container (ROCm image) serves exactly one model at a time. It is defined in `docker-compose.llama-cpp.yaml` and merged in, with one overlay, only when `--model` is given.
-
-| Shortname    | Display name       | GGUF                            |
-| ------------ | ------------------ | ------------------------------- |
-| `ornith15`   | Ornith 1.5 A3B 35B | `Ornith-1.5-35B-Q4_K_M.gguf`    |
-| `qwen3827b`  | Qwen3.8 27B        | `Qwen3.8-27B-UD-Q4_K_XL.gguf`   |
-| `glm47flash` | GLM 4.7 Flash      | `GLM-4.7-Flash-Q4_K_M.gguf`     |
+## Usage
 
 ```bash
-./opencode-run.sh --model qwen3827b
+opencode --model ornith15 [path]   # local model (cpp or dmr backend)
+opencode [path]                    # cloud, or remote llama.cpp backend
+opencode --help                    # usage + overlays for your backend
 ```
 
-Each shortname maps to `models/cpp/<shortname>.yaml`. GGUF files are **not** downloaded; put them in `/mnt/storage/llama-cpp/models` (or set `OPENCODE_GGUF_DIR`). The host folder is always mounted read-only at `/mnt/storage/llama-cpp/models` in the container, so overlays use that path. A missing file aborts the launch.
+Path defaults to the current directory.
 
-##### The llama.cpp container
+## Local backends
 
-Defined in `docker-compose.llama-cpp.yaml`, in the same compose project as OpenCode:
+Overlays live in `models/<backend>/`; `--model <shortname>` picks one.
 
-- **Image:** `ghcr.io/ggml-org/llama.cpp:server-rocm` (AMD GPUs only).
-- **Name:** fixed `container_name: llama-server`, labeled `opencode.model=<shortname>` so the launcher can tell which model is loaded.
-- **GPU:** `/dev/kfd` and `/dev/dri` passed through; the host's `video` and `render` GIDs are looked up with `getent` (fallback 44 / 992).
-- **Models:** `${OPENCODE_GGUF_DIR}` mounted read-only at `/mnt/storage/llama-cpp/models`.
-- **Shared flags:** set via `LLAMA_ARG_*` env vars — host `0.0.0.0`, port `8080`, `-ngl 999`, `--flash-attn on`, and `--alias <shortname>`. Per-model flags come from the overlay's `command:`.
-- **Network:** `opencode-net` only (see below).
-- **Logs:** `docker logs -f llama-server`. If it exits during startup, the launcher prints the last 30 log lines.
+### llama.cpp (default)
 
-##### llama-server lifecycle
+| Shortname    | Display name       | GGUF                          |
+| ------------ | ------------------ | ----------------------------- |
+| `ornith15`   | Ornith 1.5 A3B 35B | `Ornith-1.5-35B-Q4_K_M.gguf`  |
+| `qwen3827b`  | Qwen3.8 27B        | `Qwen3.8-27B-UD-Q4_K_XL.gguf` |
+| `glm47flash` | GLM 4.7 Flash      | `GLM-4.7-Flash-Q4_K_M.gguf`   |
 
-- **Not running:** started with the requested model; the launcher polls `/health` via `docker exec` (up to 5 min).
-- **Running the same model with the same config:** reused. If the overlay changed since it started (Compose config hash differs), you get the restart prompt.
-- **Running a different model:** you're warned (including how many other sessions use it) and asked before it restarts. Default is abort.
-- **On exit:** if no other llama.cpp OpenCode session is running, `llama-server` is stopped and removed; otherwise it keeps running. Cloud-mode sessions don't count. An `EXIT` trap runs this check, so it also fires on Ctrl-C.
+- One shared `llama-server` container (`ghcr.io/ggml-org/llama.cpp:server-rocm`) serves one model. GGUFs are never downloaded; a missing file aborts the launch.
+- **Same model and config running:** reused. **Different model or edited overlay:** you're asked before it restarts (default: no).
+- The launcher waits up to 5 min for `/health`. When the last llama.cpp session exits, the server is stopped and removed.
+- Docker-network only (`http://llama-server:8080`). To reach it from the host, add `ports:` under `llama-server` in `~/OpenCode/docker-compose.llama-cpp.yaml` or a project's `extra-compose.yaml`.
+- Logs: `docker logs -f llama-server`.
 
-`llama-server` is reachable only on the Docker network (`http://llama-server:8080`); no host port is published. To reach it from the host, add a `ports:` entry (e.g. `- "8080:8080"`) under `llama-server`, either in `~/OpenCode/docker-compose.llama-cpp.yaml` (all projects; re-running init will offer to overwrite it) or in a project's `extra-compose.yaml`.
+### Docker Model Runner
 
-#### Docker Model Runner
+| Shortname  | DMR model                      |
+| ---------- | ------------------------------ |
+| `ornith15` | `ai/ornith-1.5:35b-a3b-q4_K_M` |
 
-Each overlay in `models/dmr/` adds a single `llm_active` binding, so DMR loads exactly one model per launch. DMR pulls the model itself.
+If other DMR models are loaded, you're asked before they're unloaded. The `docker-model-runner` container shows `(unhealthy)` for ~2 min during large loads — cosmetic, ignore it. `runtime_flags` apply only when the model is first loaded — after editing them, run `docker model unload <model>` before relaunching, or the old flags keep serving.
 
-| Shortname  | Display name       | DMR model                      |
-| ---------- | ------------------ | ------------------------------ |
-| `ornith15` | Ornith 1.5 A3B 35B | `ai/ornith-1.5:35b-a3b-q4_K_M` |
+### Remote llama.cpp server
 
-##### Pre-flight: unload conflicting models
+One standalone llama-server, on this machine or a LAN box, shared by any number of OpenCode instances. llama.cpp only.
 
-Before launch, the script consults `docker model ps`. If any model **other than** the requested one is currently loaded, you'll see a prompt listing them. Confirming runs `docker model unload <id>` for each, so only the requested model is resident when OpenCode starts. The model stays on disk, so the next launch doesn't re-download it.
-
-##### Note: `docker-model-runner` reports `(unhealthy)` — ignore it
-
-The `docker/model-runner` image ships with a `curl -f /health` healthcheck and no `start_period`. The first ~2 minutes of a large model load show the container as `(unhealthy)` because the server hasn't bound port 8080 yet. This is cosmetic — inference works regardless. `docker update --health-*` workarounds don't stick, because the DMR plugin reasserts the image's healthcheck on each model-binding cycle.
-
-### Cloud / third-party provider
-
-Omit `--model` entirely:
+**Server** (an installed `~/OpenCode/` or a plain clone):
 
 ```bash
-./opencode-run.sh [/path/to/your/project]
+LLAMA_API_KEY=change-me ./llama-cpp-run.sh --model ornith15   # start in background
+./llama-cpp-run.sh --logs                                     # follow logs
+./llama-cpp-run.sh --stop                                     # stop and remove
 ```
 
-Neither backend is started, and OpenCode uses whatever provider you've configured in `opencode.jsonc`. Provider setup (API keys, model identifiers, etc.) is OpenCode's concern — see <https://opencode.ai/v2/docs/models/>.
+- Publishes `${LLAMA_PORT:-8080}` on all interfaces with `restart: unless-stopped`. Edit `ports:` in `docker-compose.llama-cpp-standalone.yaml` to change the bind.
+- **Without `LLAMA_API_KEY`, anyone who can reach the port can use it.** If the running server has a key and your shell doesn't, the restart prompt warns you.
+- Same model and config running → just prints the URLs. Otherwise you're asked before a restart. A server that never gets healthy is removed, so it can't crash-loop.
 
-> **Important:** Cloud mode needs the cloud template (`opencode-go` provider,
-> no local `active` provider). If you chose local at init, delete
-> `~/OpenCode/.config-mode`, re-run `opencode-init.sh`, and pick cloud.
+**Clients:** run init, pick local → `[r]`, and enter the URL (`http://host.docker.internal:8080/v1` for the same machine, `http://<server-ip>:8080/v1` for LAN) and key. They're saved to `~/OpenCode/.remote-llama-url` and `~/OpenCode/.remote-llama-key` (mode 600); delete the URL file and re-run init to change both. Then launch with no `--model`. The launcher checks the server is up, the key is accepted, and which model is loaded, then connects. It never starts or stops the server.
 
-### How it interacts with `opencode.jsonc` (local-model mode)
+## Adding a model
 
-`opencode.jsonc` defines a single generic provider named `active` that reads three env vars: `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`, and `ACTIVE_MODEL_DISPLAY_NAME`. With llama.cpp, `docker-compose.llama-cpp.yaml` sets the URL (`http://llama-server:8080/v1`) and name (the shortname, also used as `--alias`). With DMR, the overlay's `models.llm_active` binding (`endpoint_var` / `model_var`) makes DMR inject them. Each overlay sets the display name. The result:
-
-- OpenCode's picker shows exactly one model — the one you launched with — under whatever friendly name the overlay set.
-- No "selecting the wrong model" failure mode: the picker only ever offers the bound model.
-- Adding a new local model = one overlay file. `opencode.jsonc` never changes.
-
-To add a llama.cpp model, mirror `models/cpp/ornith15.yaml`:
+llama.cpp — `models/cpp/<shortname>.yaml` (don't add an `opencode:` service here):
 
 ```yaml
 services:
-  opencode:
-    environment:
-      ACTIVE_MODEL_DISPLAY_NAME: "My New Model"
-
   llama-server:
+    labels:
+      opencode.display-name: "My New Model"
     environment:
       LLAMA_ARG_MODEL: "/mnt/storage/llama-cpp/models/My-New-Model-Q4_K_M.gguf"
-    command: # optional per-model llama-server flags
-      - "--ctx-size"
-      - "65536"
+    command: ["--ctx-size", "65536"]   # optional per-model flags
 ```
 
-Shared flags (`-ngl 999`, `--flash-attn on`, host/port, alias) are set via `LLAMA_ARG_*` env vars in `docker-compose.llama-cpp.yaml`.
+Shared flags (`-ngl 999`, `--flash-attn on`, port, alias) live in `docker-compose.llama-cpp.yaml`.
 
-To add a Docker Model Runner model, mirror `models/dmr/ornith15.yaml`:
+DMR — `models/dmr/<shortname>.yaml`:
 
 ```yaml
 services:
@@ -194,92 +121,30 @@ services:
 
 models:
   llm_active:
-    model: <docker-model-runner-identifier>
-    # runtime_flags: [...]  # optional per-model flags
+    model: <dmr-identifier>
 ```
 
-The same shortname can exist in both folders; only the one for the saved backend is used.
+The local `opencode.jsonc` defines one `active` provider fed by `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`, `ACTIVE_MODEL_DISPLAY_NAME` (and `ACTIVE_MODEL_API_KEY` for remote), so the picker only ever shows the model you launched.
 
-## Workspace customization
+## Cloud mode
 
-You can customize the OpenCode service for specific projects by placing an `extra-compose.yaml` file in your workspace directory. This file is automatically detected and merged into the compose invocation, enabling per-project customizations like:
+Omit `--model`. OpenCode uses the provider in `opencode.jsonc` (cloud template: `opencode-go`). If you chose local at init, delete `~/OpenCode/.config-mode` and re-run init.
 
-- Joining external Docker networks (e.g., a KiwiFS network)
-- Adding custom volumes
-- Setting environment variables
-- Modifying the working directory
+## Per-project `extra-compose.yaml`
 
-### How it works
+A workspace `extra-compose.yaml` is merged into the launch. It may change existing services (`opencode`, and `llama-server` on cpp) but not add new ones.
 
-1. Place an `extra-compose.yaml` file in your project directory
-2. Run OpenCode with that directory as the workspace: `./opencode-run.sh /path/to/your/project`
-3. The script detects the file, validates it, and merges it with the base configuration
-
-### Validation
-
-The launcher runs `docker compose config --services` with and without `extra-compose.yaml` and compares the lists:
-
-- New services (e.g., `kiwifs`, `database`) are **not allowed**
-- Changes to existing services are permitted: `opencode` (networks, volumes, environment, etc.), and `llama-server` with the llama.cpp backend (e.g. a `ports:` entry)
-
-### Paths in `extra-compose.yaml`
-
-- **Relative paths** like `./data` resolve against `~/OpenCode/`, the folder of the first compose file, not your project. Use absolute paths or `${HOME}` / `${WORKSPACE_DIR}`.
-- **Your project** is mounted at `/home/abc/${OC_PROJECT_NAME}` (the folder's name), not `/home/abc/workspace`.
-
-### Examples
-
-#### Joining an external network (KiwiFS scenario)
+- New or changed content asks for a y/N first, since the agent can write your project. Approved copies live in `~/OpenCode/.approved-extra-compose/`.
+- You approve the file as `docker compose config` resolves it, so `extends:`/`include:` targets are copied in and later edits to them have no effect.
+- Relative paths resolve against `~/OpenCode/`, not your project. Use absolute paths, `${HOME}`, or `${WORKSPACE_DIR}`.
+- Your project is mounted at `/home/abc/${OC_PROJECT_NAME}`.
 
 ```yaml
 services:
   opencode:
-    networks:
-      - kiwifs-net
-
-networks:
-  kiwifs-net:
-    external: true
-```
-
-#### Multiple external networks
-
-```yaml
-services:
-  opencode:
-    networks:
-      - kiwifs-net
-      - database-net
-
-networks:
-  kiwifs-net:
-    external: true
-  database-net:
-    external: true
-```
-
-#### Adding volumes and environment variables
-
-```yaml
-services:
-  opencode:
+    networks: [kiwifs-net]
     volumes:
       - "${HOME}/datasets:/home/abc/datasets"
-    environment:
-      CUSTOM_VAR: "value"
-      API_KEY: "your-api-key"
-    working_dir: "/home/abc/${OC_PROJECT_NAME}/src"
-```
-
-#### Combining network and volume customizations
-
-```yaml
-services:
-  opencode:
-    networks:
-      - kiwifs-net
-    volumes:
-      - "${HOME}/gtd-kiwi-fs:/home/abc/gtd-kiwi-fs"
     environment:
       KIWIFS_URL: "http://kiwifs:3333"
 
@@ -288,75 +153,53 @@ networks:
     external: true
 ```
 
-### Output
+## Host layout and config
 
-When an `extra-compose.yaml` file is detected, the script displays its path in the startup output:
+| `~/OpenCode/...`           | Container      | Holds                                   |
+| -------------------------- | -------------- | --------------------------------------- |
+| `dot-config/`              | `~/.config/`   | `opencode.jsonc`, `cli.json`, skills, plugins |
+| `dot-local/`               | `~/.local/`    | DB, auth, sessions                      |
+| `dot-cache/`               | `~/.cache/`    | caches                                  |
+| `dot-npm/`                 | `~/.npm/`      | plugin dependencies                     |
+| `dot-ssh/`                 | `~/.ssh/`      | SSH key (generated on first run)        |
+| `dot-gitconfig/.gitconfig` | `~/.gitconfig` | git identity (asked on first run)       |
 
-```
-Starting OpenCode in container...
-  Workspace: /home/abc/KiwiFS-Implementation/PoC
-  Config:    /home/abc/OpenCode/dot-config/
-  Model:     (none — cloud/third-party mode; see opencode.jsonc)
-  User:      abc (PUID=1000, PGID=1000)
----------------------------------------------------
-  Script Directory:    /home/abc/opencode-docker-compose
-  Extra Compose: /home/abc/KiwiFS-Implementation/PoC/extra-compose.yaml
----------------------------------------------------
-```
-
-## Host-side layout (`${HOME}/OpenCode/...`)
-
-| Path                       | Maps to in container | Purpose                                                                                                                                                                                                     |
-| -------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dot-config/`              | `~/.config/`         | Everything OpenCode reads from its XDG default location — skills, agents, commands, themes, plugins (`~/.config/opencode/*`), plus the seeded `opencode.jsonc` and `cli.json` (see "Config seeding" below). |
-| `dot-local/`               | `~/.local/`          | DB, auth, sessions, prompt history, model selection                                                                                                                                                         |
-| `dot-cache/`               | `~/.cache/`          | Download/build cache, agent binaries                                                                                                                                                                        |
-| `dot-npm/`                 | `~/.npm/`            | Plugin/skill dependency cache                                                                                                                                                                               |
-| `dot-ssh/`                 | `~/.ssh/`            | SSH keys (generated on first run)                                                                                                                                                                           |
-| `dot-gitconfig/.gitconfig` | `~/.gitconfig`       | Git identity (prompted on first run)                                                                                                                                                                        |
-
-### Config seeding
-
-Two source templates live in the cloned repo: `opencode.jsonc.cloud.template` (for third-party providers) and `opencode.jsonc.local.template` (for llama.cpp or Docker Model Runner). `opencode-init.sh` deploys the one you chose as `opencode.jsonc.template` at the script root, alongside `cli.json.template`.
-
-On every launch, `opencode-run.sh` **moves** whichever of them exist into `${HOME}/OpenCode/dot-config/opencode/` — stripping the `.template` suffix so each becomes `opencode.jsonc` and `cli.json` — which is bind-mounted to `~/.config/opencode/` inside the container, the XDG default OpenCode reads from.
-
-The script root is a **transient handoff slot**, not a permanent home for the config files:
-
-- First launch after `opencode-init.sh`: the two template files exist at the script root → `opencode-run.sh` moves them into `dot-config/opencode/`. If the destination files already exist, they are first copied to a timestamped backup (e.g. `20260716-143022_opencode.jsonc.backup`) before being overwritten.
-- Subsequent launches: the script root is empty → the move step is silently skipped, and OpenCode continues reading the previously-seeded files from `dot-config/opencode/`.
-- If you never run `opencode-init.sh` (or you delete the source files), the move step is skipped on every launch and OpenCode falls back to whatever defaults it writes itself.
-
-**To push updated config:** edit the canonical templates in your cloned repo, re-run `opencode-init.sh` (which re-copies them into the script root, prompting on overwrite), then launch with `opencode` — the move step picks them up. Any existing config at the destination is backed up automatically.
-
-Edit config files on the host; changes take effect on the next container start. Auth, sessions, and DB persist across image rebuilds.
+Init leaves `opencode.jsonc.template` and `cli.json.template` in `~/OpenCode/`; the next launch **moves** them into `dot-config/opencode/`, backing up existing files. To push a config change: edit the template in the repo, re-run init, launch.
 
 ## Files
 
-- `opencode-init.sh` — Host-side first-time-setup script. Copies the project tree to `${HOME}/OpenCode/` (excluding `README.md`, `AGENTS.md`, `LICENSE`, `.git*`, the `opencode.jsonc.*.template` files, and itself), prompts before overwriting existing files, prompts for cloud/local configuration mode (deploys the chosen template as `opencode.jsonc.template`), and installs the `opencode` alias in `~/.bashrc` if not already present. Remembers the cloud/local choice in `${HOME}/OpenCode/.config-mode` and the local backend in `${HOME}/OpenCode/.local-backend`; re-run to update files; delete either file to re-prompt. Idempotent; safe to re-run.
-- `Dockerfile` — Ubuntu 26.04 base. Installs Node + uv + OpenCode toolchain; copies the OpenCode binary to `/usr/local/bin/` so it survives any bind mount under `/home/abc`. Hardening borrowed from linuxserver.io: `userdel ubuntu` removes the default UID-1000 user that ships with 26.04 (eliminates a PUID collision), `locales` is installed and `en_US.UTF-8` generated to prevent TUI/encoding glitches, and the `abc` user is created via `useradd -u 911 -U` (matching group auto-created; GID is remapped at runtime).
-- `entrypoint.sh` — Remaps `abc` UID/GID to host `PUID`/`PGID`, starts a headless Xvfb display so clipboard copy works, then drops privileges via `gosu`.
-- `opencode-run.sh` — Host-side launcher. Parses `--model`, reads the backend from `.local-backend`, validates overlays, bootstraps host directories and git/SSH identity, then invokes compose with the selected model overlay. llama.cpp: checks the GGUF, starts/reuses `llama-server`, and stops it on exit if no other session uses it. DMR: unloads conflicting models first. Detects and merges `extra-compose.yaml` from workspace directory for per-project OpenCode service customization (may modify existing services, not add new ones).
-- `docker-compose.yaml` — Base service definition: volume mounts, environment, healthcheck, `opencode-net`, and `command: opencode --standalone` (see [Running several sessions at once](#running-several-sessions-at-once)). **No model backend** — see `docker-compose.llama-cpp.yaml` and `models/`.
-- `docker-compose.llama-cpp.yaml` — The `llama-server` service (ROCm image, GPU devices, read-only models mount) plus `ACTIVE_MODEL_URL`/`ACTIVE_MODEL_NAME` for OpenCode. Merged only in local mode with the llama.cpp backend.
-- `models/cpp/*.yaml` — llama.cpp overlays: GGUF path (`LLAMA_ARG_MODEL`), llama-server flags (`command:`), and `ACTIVE_MODEL_DISPLAY_NAME`.
-- `models/dmr/*.yaml` — Docker Model Runner overlays: one `llm_active` binding plus `ACTIVE_MODEL_DISPLAY_NAME`.
-- `opencode.jsonc.cloud.template` — Cloud configuration template. Uses the `opencode-go` provider with a third-party model.
-- `opencode.jsonc.local.template` — Local configuration template. Defines an `active` provider that reads `ACTIVE_MODEL_URL`, `ACTIVE_MODEL_NAME`, and `ACTIVE_MODEL_DISPLAY_NAME` from env vars set by the backend (`docker-compose.llama-cpp.yaml` or the DMR binding) and the model overlay.
-- `cli.json.template` — CLI/TUI settings template.
-- `opencode-init.sh` deploys one of the `opencode.jsonc.*.template` files as `opencode.jsonc.template` at the script root based on your cloud/local choice. `opencode-run.sh` then moves it (and `cli.json.template`) into `${HOME}/OpenCode/dot-config/opencode/` on every launch (`.template` suffix is stripped, producing `opencode.jsonc` and `cli.json`), which the container sees at `~/.config/opencode/` (the XDG default). Edit the source templates to change the config; delete them to fall back to OpenCode-generated defaults.
+| File | Purpose |
+| ---- | ------- |
+| `opencode-init.sh` | One-time setup: copy, mode/backend prompts, alias |
+| `opencode-run.sh` | Launcher |
+| `llama-cpp-run.sh` | Standalone llama-server for the remote backend |
+| `llama-cpp-lib.sh` | Shared llama.cpp steps (GGUF check, start-or-reuse, health wait) |
+| `docker-compose.yaml` | Base OpenCode service (`--standalone`), no model backend |
+| `docker-compose.llama-cpp.yaml` | `llama-server` service (cpp) |
+| `docker-compose.llama-cpp-standalone.yaml` | Standalone overrides: port, restart, API key |
+| `models/cpp/`, `models/dmr/` | One overlay per model |
+| `opencode.jsonc.{cloud,local}.template` | Config templates (local disables request timeouts for slow prefills) |
+| `cli.json.template` | TUI settings |
+| `Dockerfile`, `entrypoint.sh` | Image; UID/GID remap, Xvfb for clipboard, `gosu` |
+| `tests/init-instance.sh` | Checks init's directory and alias rules (not copied to instances) |
+| `tests/extra-compose.sh` | Checks the `extra-compose.yaml` approval flow with a stub `docker` (not copied to instances) |
+| `tests/overlays.sh` | Checks the overlay parsers (not copied to instances) |
 
-## Running several sessions at once
+## Tests
 
-OpenCode runs with `--standalone` (see `command:` in `docker-compose.yaml`), so each container has its own private server. OpenCode V2's shared background service registers itself in `~/.local/state/opencode/service.json`. That file is shared across containers, but each container has its own `127.0.0.1`, so parallel sessions kept replacing each other's service. Each session now costs a little more memory (one server per container).
+```bash
+./tests/init-instance.sh
+./tests/extra-compose.sh
+./tests/overlays.sh
+```
 
-## Troubleshooting: "Background service failed to start"
+`init-instance.sh` runs `opencode-init.sh` in a throwaway `HOME` and checks the directory and alias rules above. `overlays.sh` checks the overlay parsers (`read_overlay_gguf`, `read_overlay_model_id`) against the real overlays, with no Docker needed. Both print `ok`/`FAIL` per case and exit non-zero on any failure; they don't touch your real `~/.bashrc` or instance directories.
 
-**Symptom:** OpenCode exits right after starting. Before the switch to `--standalone`, the error was `Error: Background service failed to start`; either way the log shows `database migration failed`.
+## Troubleshooting
 
-**Cause:** On startup, OpenCode 2.0.20 runs database migration `20260812213948_worktree`. It fails with `FOREIGN KEY constraint failed` because the persisted DB has orphaned `project_directory` rows, so the server exits on every launch. The log is `~/OpenCode/dot-local/share/opencode/log/opencode.log`.
+**Several sessions at once:** OpenCode runs `--standalone`, so each container has its own server. Without it, containers fight over the shared `service.json` and kill each other's sessions.
 
-**Fix:** `cd` into the data directory, back up the DB, delete the orphaned rows, then relaunch:
+**"Background service failed to start" / `database migration failed`:** orphaned rows break migration `20260812213948_worktree`.
 
 ```bash
 cd ~/OpenCode/dot-local/share/opencode/
@@ -364,4 +207,4 @@ cp opencode.db opencode.db.bak
 sqlite3 opencode.db "DELETE FROM project_directory WHERE project_id NOT IN (SELECT id FROM project);"
 ```
 
-If that doesn't work, move `opencode.db` aside so OpenCode creates a fresh one. You lose existing sessions.
+If that fails, move `opencode.db` aside (you lose existing sessions).
