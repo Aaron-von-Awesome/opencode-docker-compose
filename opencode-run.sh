@@ -431,7 +431,40 @@ if [[ -n "$MODEL_PROFILE" ]]; then
 fi
 
 # Optional per-project extra-compose.yaml may modify services but not add any.
+# The agent can write the workspace, so new or changed content needs a human
+# OK. Compose reads the approved copy in the instance dir, which the agent
+# can't reach, so the file can't change between approval and launch.
 if [[ -n "$EXTRA_COMPOSE" ]]; then
+  APPROVED_DIR="${SCRIPT_DIR}/.approved-extra-compose"
+  mkdir -p "$APPROVED_DIR"
+  _tmp="$(mktemp "${APPROVED_DIR}/.new.XXXXXX")"
+  # Compose resolves extends:/include: here, so the approved copy loads no
+  # other file the agent could edit later. Its `name:` would override the
+  # project name (opencode-va), so it's dropped.
+  if ! docker compose --project-directory "$SCRIPT_DIR" -f "$EXTRA_COMPOSE" config --no-interpolate --no-normalize --no-consistency |
+    grep -v '^name:' >"$_tmp"; then
+    rm "$_tmp"
+    echo "Error: docker compose can't read ${EXTRA_COMPOSE}." >&2
+    exit 1
+  fi
+  _approved="${APPROVED_DIR}/$(sha256sum "$_tmp" | cut -d' ' -f1).yaml"
+  if [[ -f "$_approved" ]]; then
+    rm "$_tmp"
+  else
+    echo "New or changed ${EXTRA_COMPOSE}:"
+    # cat -v shows control codes, so escape sequences can't hide lines.
+    sed 's/^/    /' "$_tmp" | cat -v
+    read -r -p "Merge it into the launch? It can change mounts and privileges. [y/N]: " _ans || _ans=""
+    case "$_ans" in
+    y | Y | yes | YES) mv "$_tmp" "$_approved" ;;
+    *)
+      rm "$_tmp"
+      echo "Aborted." >&2
+      exit 1
+      ;;
+    esac
+  fi
+  EXTRA_COMPOSE="$_approved"
   base_services="$(docker compose "${COMPOSE_ARGS[@]}" config --services)"
   COMPOSE_ARGS+=(-f "$EXTRA_COMPOSE")
   all_services="$(docker compose "${COMPOSE_ARGS[@]}" config --services)"
@@ -482,4 +515,3 @@ if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
 fi
 
 docker compose "${COMPOSE_ARGS[@]}" "${RUN_ARGS[@]}" opencode
-
