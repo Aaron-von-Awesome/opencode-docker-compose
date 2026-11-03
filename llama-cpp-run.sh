@@ -30,6 +30,9 @@ $(list_model_overlays cpp "                          ")
 
 Environment:
   LLAMA_PORT              Host port to publish (default: 8080).
+  LLAMA_BIND              Host address to bind (default: 0.0.0.0, all
+                          interfaces). 127.0.0.1 is unreachable from
+                          OpenCode containers via host.docker.internal.
   LLAMA_API_KEY           Optional API key clients must send. Unset or empty
                           means no key.
   OPENCODE_GGUF_DIR       Host folder holding the GGUF files
@@ -118,7 +121,7 @@ esac
 llama_wait_healthy "$CONTAINER" "$(basename "$0") --logs"
 trap - EXIT
 
-echo "Standalone llama-server is serving '${MODEL_PROFILE}' on port ${LLAMA_PORT:-8080}."
+echo "Standalone llama-server is serving '${MODEL_PROFILE}' on ${LLAMA_BIND:-0.0.0.0}:${LLAMA_PORT:-8080}."
 echo "  Same machine: http://host.docker.internal:${LLAMA_PORT:-8080}/v1"
 echo "  LAN:          http://$(hostname -I 2>/dev/null | awk '{print $1}'):${LLAMA_PORT:-8080}/v1"
 if [[ -n "${LLAMA_API_KEY:-}" ]]; then

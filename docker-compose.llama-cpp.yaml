@@ -13,14 +13,14 @@ services:
       - "${VIDEO_GID:-44}"
       - "${RENDER_GID:-992}"
     volumes:
-      - "${OPENCODE_GGUF_DIR}:/mnt/storage/llama-cpp/models:ro"
+      - "${OPENCODE_GGUF_DIR:-/mnt/storage/llama-cpp/models}:/mnt/storage/llama-cpp/models:ro"
     labels:
-      opencode.model: "${MODEL_PROFILE}"
+      opencode.model: "${MODEL_PROFILE:-}"
     environment:
       LLAMA_ARG_HOST: "0.0.0.0"
       LLAMA_ARG_PORT: "8080"
       LLAMA_ARG_N_GPU_LAYERS: "999"
       LLAMA_ARG_FLASH_ATTN: "on"
-      LLAMA_ARG_ALIAS: "${MODEL_PROFILE}"
+      LLAMA_ARG_ALIAS: "${MODEL_PROFILE:-}"
     networks:
       opencode-net:

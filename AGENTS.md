@@ -36,7 +36,7 @@ services but not add new ones.
 - `./opencode-run.sh [/path/to/project]` — cloud/third-party provider mode.
 - `./opencode-run.sh --help` — lists available model overlays.
 - `./llama-cpp-run.sh --model <shortname> | --stop | --logs` — standalone
-  llama-server for the `remote` backend (`LLAMA_PORT`, `LLAMA_API_KEY`).
+  llama-server for the `remote` backend (`LLAMA_PORT`, `LLAMA_BIND`, `LLAMA_API_KEY`).
 - `./tests/init-instance.sh` — runs init in a throwaway `HOME` and checks the
   instance-directory and alias rules. Run it after editing `opencode-init.sh`.
 - `./tests/extra-compose.sh` — runs `opencode-run.sh` with a stub `docker` and
@@ -95,7 +95,9 @@ branches, PRs, or tags in current history; no CI to satisfy.
 - **Standalone server** (`llama-cpp-run.sh`): compose project
   `llama-cpp-standalone`, container `llama-server-standalone`, files
   `docker-compose.llama-cpp.yaml` + `docker-compose.llama-cpp-standalone.yaml`
-  + `models/cpp/<shortname>.yaml`. The standalone file adds `ports:`,
+  + `models/cpp/<shortname>.yaml`. The standalone file adds `ports:`
+  (`${LLAMA_BIND:-0.0.0.0}:${LLAMA_PORT:-8080}`; `127.0.0.1` is unreachable
+  from OpenCode containers, whose `host.docker.internal` is the bridge IP),
   `restart: unless-stopped`, a value-less `LLAMA_ARG_API_KEY` (exported only
   when `LLAMA_API_KEY` is non-empty, so an empty key never reaches llama.cpp),
   and the `opencode-net` network. Same config-hash rule as the per-session
@@ -104,7 +106,10 @@ branches, PRs, or tags in current history; no CI to satisfy.
   a failed start or health wait) pass `-f docker-compose.llama-cpp.yaml -f
   docker-compose.llama-cpp-standalone.yaml` explicitly and run from the repo
   root, so compose never picks up a stray `docker-compose.yaml` from the
-  caller's CWD; `--remove-orphans` is kept as belt-and-braces. The trap is
+  caller's CWD; `--remove-orphans` is kept as belt-and-braces. `--stop` runs
+  without `llama_preflight`, so every `${...}` in
+  `docker-compose.llama-cpp.yaml` needs a default (`OPENCODE_GGUF_DIR`,
+  `MODEL_PROFILE`, the GIDs) or compose fails to parse. The trap is
   armed before the start and removed on reuse (10) and on a declined restart
   prompt (11), so a healthy server the user chose to keep is never removed
   (otherwise `restart: unless-stopped` crash-loops the failed container); the

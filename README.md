@@ -77,16 +77,17 @@ If other DMR models are loaded, you're asked before they're unloaded. The `docke
 
 One standalone llama-server, on this machine or a LAN box, shared by any number of OpenCode instances. llama.cpp only.
 
-**Server** (an installed `~/OpenCode/` or a plain clone):
+**Server:** run `llama-cpp-run.sh` on the machine with the GPU and GGUFs. The script is in this repo and in every instance directory, since `opencode-init.sh` copies it there. Both copies work, and you can run it from any directory:
 
 ```bash
+cd ~/OpenCode            # or your clone of this repo
 LLAMA_API_KEY=change-me ./llama-cpp-run.sh --model ornith15   # start in background
 ./llama-cpp-run.sh --logs                                     # follow logs
 ./llama-cpp-run.sh --stop                                     # stop and remove
 ```
 
-- Publishes `${LLAMA_PORT:-8080}` on all interfaces with `restart: unless-stopped`. Edit `ports:` in `docker-compose.llama-cpp-standalone.yaml` to change the bind.
-- **Without `LLAMA_API_KEY`, anyone who can reach the port can use it.** If the running server has a key and your shell doesn't, the restart prompt warns you.
+- Publishes `${LLAMA_BIND:-0.0.0.0}:${LLAMA_PORT:-8080}` with `restart: unless-stopped`. Set `LLAMA_BIND` to one interface's IP (e.g. a Tailscale IP) to limit exposure. `127.0.0.1` also blocks same-machine OpenCode containers, since `host.docker.internal` is the Docker bridge IP, not loopback.
+- **Without `LLAMA_API_KEY`, anyone who can reach the port can use it.** Generate one with `openssl rand -hex 32` and give clients the same value. It isn't saved on the server, so pass it again on every restart. If the running server has a key and your shell doesn't, the restart prompt warns you.
 - Same model and config running → just prints the URLs. Otherwise you're asked before a restart. A server that never gets healthy is removed, so it can't crash-loop.
 
 **Clients:** run init, pick local → `[r]`, and enter the URL (`http://host.docker.internal:8080/v1` for the same machine, `http://<server-ip>:8080/v1` for LAN) and key. They're saved to `~/OpenCode/.remote-llama-url` and `~/OpenCode/.remote-llama-key` (mode 600); delete the URL file and re-run init to change both. Then launch with no `--model`. The launcher checks the server is up, the key is accepted, and which model is loaded, then connects. It never starts or stops the server.
