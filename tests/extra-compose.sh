@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Checks opencode-run.sh's extra-compose.yaml approval, no-new-services rule
-# and cloud-mode --model rejection, with a stub `docker`.
+# Checks opencode-run.sh's extra-compose.yaml approval, no-new-services rule,
+# cloud-mode --model rejection and COMPOSE_IGNORE_ORPHANS per backend, with
+# stub `docker` and `curl`.
 # Run: ./tests/extra-compose.sh
 set -uo pipefail
 
@@ -11,7 +12,8 @@ fails=0
 
 I="$T/instance" W="$T/project"
 mkdir -p "$I/dot-gitconfig" "$I/dot-ssh" "$T/bin" "$W"
-cp "$REPO"/{opencode-run.sh,llama-cpp-lib.sh,docker-compose.yaml} "$I/"
+cp "$REPO"/{opencode-run.sh,llama-cpp-lib.sh,docker-compose.yaml,docker-compose.llama-cpp.yaml} "$I/"
+cp -r "$REPO/models" "$I/"
 touch "$I/dot-gitconfig/.gitconfig" "$I/dot-ssh/id_opencode"
 
 # Stub: `compose ... config --services` lists the -f files' services;
@@ -28,12 +30,18 @@ while [[ $# -gt 0 ]]; do
   config)
     [[ "${2:-}" == --services ]] || { echo "name: stub"; echo "# resolved"; cat "${files[@]}"; exit; }
     awk '/^services:/ {s=1; next} /^[^ ]/ {s=0} s && /^  [a-z]/ {sub(/:.*/, ""); sub(/^ +/, ""); print}' "${files[@]}" | sort -u; exit ;;
-  run) echo "RAN ${files[*]}"; exit 0 ;;
+  run) echo "RAN ${files[*]} IGNORE_ORPHANS=${COMPOSE_IGNORE_ORPHANS:-}"; exit 0 ;;
   *) shift ;;
   esac
 done
 EOF
 chmod +x "$T/bin/docker"
+# Stub: a remote llama-server reporting one model and accepting no-key requests.
+cat >"$T/bin/curl" <<'EOF2'
+#!/usr/bin/env bash
+[[ "${*: -1}" == */models ]] && echo '{"data":[{"id":"stub-model"}]}' || echo 404
+EOF2
+chmod +x "$T/bin/curl"
 
 # umask 002 (Ubuntu user-private-group default) so the ssh config mode check bites.
 run() { (umask 002; PATH="$T/bin:$PATH" HOME="$T" "$I/opencode-run.sh" "$W" 2>&1); }
@@ -87,10 +95,25 @@ out="$(echo y | run)"
 check "new service is rejected" "adds service(s): kiwifs" "$out"
 refute "new service doesn't run" "RAN" "$out"
 
+rm "$W/extra-compose.yaml"
 echo cloud >"$I/.config-mode"
 out="$(PATH="$T/bin:$PATH" HOME="$T" "$I/opencode-run.sh" --model ornith15 "$W" 2>&1 </dev/null)"
 check "cloud mode rejects --model" "isn't used in cloud mode" "$out"
+check "cloud launch ignores orphans" "IGNORE_ORPHANS=true" "$(run </dev/null)"
 rm "$I/.config-mode"
+
+echo local >"$I/.config-mode"
+echo remote >"$I/.local-backend"
+echo "http://host.docker.internal:8080/v1" >"$I/.remote-llama-url"
+check "remote launch ignores orphans" "IGNORE_ORPHANS=true" "$(run </dev/null)"
+
+echo cpp >"$I/.local-backend"
+mkdir -p "$T/gguf"
+touch "$T/gguf/$(cd "$REPO" && source llama-cpp-lib.sh && read_overlay_gguf models/cpp/ornith15.yaml)"
+out="$(umask 002; PATH="$T/bin:$PATH" HOME="$T" OPENCODE_GGUF_DIR="$T/gguf" "$I/opencode-run.sh" --model ornith15 "$W" 2>&1 </dev/null)"
+check "cpp launch runs" "RAN docker-compose.yaml docker-compose.llama-cpp.yaml" "$out"
+refute "cpp launch keeps orphan warnings" "IGNORE_ORPHANS=true" "$out"
+rm "$I/.config-mode" "$I/.local-backend" "$I/.remote-llama-url"
 
 [[ "$(stat -c %a "$I/dot-ssh/config" 2>/dev/null)" == 600 ]] && echo "ok   ssh config written, mode 600" || { echo "FAIL ssh config missing or not 600"; fails=$((fails + 1)); }
 

@@ -425,6 +425,9 @@ cd "${SCRIPT_DIR}"
 COMPOSE_ARGS=(-f docker-compose.yaml)
 if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
   COMPOSE_ARGS+=(-f docker-compose.llama-cpp.yaml)
+else
+  # The shared llama-server (another cpp session/instance, same project) isn't in this file set.
+  export COMPOSE_IGNORE_ORPHANS=true
 fi
 if [[ -n "$MODEL_PROFILE" ]]; then
   COMPOSE_ARGS+=(-f "models/${LOCAL_BACKEND}/${MODEL_PROFILE}.yaml")

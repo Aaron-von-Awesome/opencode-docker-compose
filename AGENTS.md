@@ -159,7 +159,8 @@ branches, PRs, or tags in current history; no CI to satisfy.
   different model or edited overlay → prompt, then `up -d --force-recreate`.
   cpp sessions are labeled `opencode.uses-llama=true`; an EXIT trap stops and
   removes llama-server when none remain. Cloud, DMR, and remote sessions never
-  touch it.
+  touch it; they export `COMPOSE_IGNORE_ORPHANS=true` because it shares the
+  `opencode-va` project. Never add `--remove-orphans` there — it would kill it.
 - **ROCm only (cpp).** The image is `server-rocm`; video/render GIDs come from
   `getent` on the host (fallback 44/992).
 - **OpenCode runs `--standalone`** (`command:` in `docker-compose.yaml`).
