@@ -28,7 +28,10 @@
   "snapshots": true,
 
   // Automatically compact to avoid exceeding the context limit
-  "compaction": { "auto": true },
+  "compaction": {
+    "auto": true,
+    "buffer": "20%",
+  },
 
   // Disable Web Search
   "websearch": false,
@@ -64,8 +67,6 @@
 
   "plugins": [
     // "/home/abc/development/skills/ponytail/.opencode/plugins",
-    // "opencode-skill-creator",
-    // "superpowers@git+https://github.com/obra/superpowers.git",
-    // "/home/abc/development/skills/agent-creator",
+    // "superpowers@git+https://github.com/obra/superpowers.git#v7.0.1",
   ],
 }

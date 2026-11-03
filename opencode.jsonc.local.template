@@ -8,6 +8,12 @@
       "name": "{env:ACTIVE_MODEL_DISPLAY_NAME}",
       "settings": {
         "baseURL": "{env:ACTIVE_MODEL_URL}",
+        // Set only for the remote backend when the server has an API key;
+        // empty means no Authorization header.
+        "apiKey": "{env:ACTIVE_MODEL_API_KEY}",
+        // No request/header timeouts: long local prefills would otherwise abort.
+        "headerTimeout": false,
+        "timeout": false,
       },
       "models": {
         "{env:ACTIVE_MODEL_NAME}": {
@@ -26,8 +32,7 @@
   // Automatically compact to avoid exceeding the context limit
   "compaction": {
     "auto": true,
-    "keep": { "tokens": 24000 },
-    "buffer": 16000,
+    "buffer": "20%",
   },
 
   // Disable Web Search
@@ -64,8 +69,6 @@
 
   "plugins": [
     // "/home/abc/development/skills/ponytail/.opencode/plugins",
-    // "opencode-skill-creator",
-    // "superpowers@git+https://github.com/obra/superpowers.git",
-    // "/home/abc/development/skills/agent-creator",
+    // "superpowers@git+https://github.com/obra/superpowers.git#v7.0.1",
   ],
 }
