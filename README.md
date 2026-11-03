@@ -193,7 +193,7 @@ Init leaves `opencode.jsonc.template` and `cli.json.template` in `~/OpenCode/`; 
 ./tests/overlays.sh
 ```
 
-`init-instance.sh` runs `opencode-init.sh` in a throwaway `HOME` and checks the directory and alias rules above. `overlays.sh` checks the overlay parsers (`read_overlay_gguf`, `read_overlay_model_id`) against the real overlays, with no Docker needed. Both print `ok`/`FAIL` per case and exit non-zero on any failure; they don't touch your real `~/.bashrc` or instance directories.
+`init-instance.sh` runs `opencode-init.sh` in a throwaway `HOME` and checks the directory and alias rules above. `overlays.sh` checks the overlay parsers (`read_overlay_gguf`, `read_overlay_model_id`) against the real overlays, with no Docker needed. All three print `ok`/`FAIL` per case and exit non-zero on any failure; they don't touch your real `~/.bashrc` or instance directories.
 
 ## Troubleshooting
 

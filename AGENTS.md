@@ -4,7 +4,7 @@ This repo packages OpenCode in a Docker container for local development. It is
 not an application — the "code" is shell scripts, a Dockerfile, compose files,
 and per-model YAML overlays. There is no lint config, CI, or build step;
 verification is launching the container with `./opencode-run.sh`, plus
-`tests/init-instance.sh` for init's directory/alias rules.
+the scripts under `tests/`.
 
 ## Architecture in one paragraph
 
@@ -41,8 +41,10 @@ services but not add new ones.
   instance-directory and alias rules. Run it after editing `opencode-init.sh`.
 - `./tests/extra-compose.sh` — runs `opencode-run.sh` with a stub `docker` and
   checks the `extra-compose.yaml` approval and no-new-services rules, and that
-  cloud mode rejects `--model`.
-  Otherwise nothing to build or lint; edit scripts and re-launch to verify.
+  cloud mode rejects `--model`. Run it after editing `opencode-run.sh`.
+- `./tests/overlays.sh` — checks the overlay parsers (`read_overlay_gguf`,
+  `read_overlay_model_id`) against the real overlays; no Docker needed.
+- Otherwise nothing to build or lint; edit scripts and re-launch to verify.
 - If the workspace contains `extra-compose.yaml`, it is merged into the compose
   invocation for per-project customization. It may modify existing services but
   not add new ones.
@@ -219,6 +221,7 @@ models/dmr/<shortname>.yaml   # Docker Model Runner overlay (llm_active binding)
 opencode.jsonc.cloud.template # cloud config (third-party provider); deployed as opencode.jsonc.template by init
 opencode.jsonc.local.template # local config (llama.cpp or DMR); deployed as opencode.jsonc.template by init
 cli.json.template      # CLI/TUI settings (theme, mouse, attention, terminal, etc.); same move semantics
+tests/                  # self-checks (init rules, extra-compose flow, overlay parsers)
 ```
 
 Host-side persistent layout (created by `opencode-run.sh`) lives at
