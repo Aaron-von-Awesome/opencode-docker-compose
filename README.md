@@ -184,6 +184,7 @@ Init leaves `opencode.jsonc.template` and `cli.json.template` in `~/OpenCode/`; 
 | `Dockerfile`, `entrypoint.sh` | Image; UID/GID remap, Xvfb for clipboard, `gosu` |
 | `tests/init-instance.sh` | Checks init's directory and alias rules (not copied to instances) |
 | `tests/extra-compose.sh` | Checks the `extra-compose.yaml` approval flow with a stub `docker` (not copied to instances) |
+| `tests/llama-cpp-run.sh` | Checks the standalone launcher's `--gpu` flag with a stub `docker` (not copied to instances) |
 | `tests/overlays.sh` | Checks the overlay parsers (not copied to instances) |
 
 ## Tests
@@ -191,10 +192,11 @@ Init leaves `opencode.jsonc.template` and `cli.json.template` in `~/OpenCode/`; 
 ```bash
 ./tests/init-instance.sh
 ./tests/extra-compose.sh
+./tests/llama-cpp-run.sh
 ./tests/overlays.sh
 ```
 
-`init-instance.sh` runs `opencode-init.sh` in a throwaway `HOME` and checks the directory and alias rules above. `overlays.sh` checks the overlay parsers (`read_overlay_gguf`, `read_overlay_model_id`) against the real overlays, with no Docker needed. All three print `ok`/`FAIL` per case and exit non-zero on any failure; they don't touch your real `~/.bashrc` or instance directories.
+`init-instance.sh` runs `opencode-init.sh` in a throwaway `HOME` and checks the directory and alias rules above. `overlays.sh` checks the overlay parsers (`read_overlay_gguf`, `read_overlay_model_id`) against the real overlays, with no Docker needed. `extra-compose.sh` stubs `docker` to check the per-project file approval, the no-new-services rule, and cloud-mode/local-backend handling. `llama-cpp-run.sh` stubs `docker` to check the standalone server's `--gpu` flag, plus the reuse and declined-restart paths of the shared start-up logic. All four print `ok`/`FAIL` per case and exit non-zero on any failure; they don't touch your real `~/.bashrc` or instance directories.
 
 ## Troubleshooting
 
