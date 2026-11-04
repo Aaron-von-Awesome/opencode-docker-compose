@@ -14,7 +14,14 @@ mkdir -p "$T/bin" "$T/gguf"
 cat >"$T/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-inspect) [[ "$2" == "-f" && "$3" == "{{.State.Running}}" ]] && echo true; exit 0 ;;
+inspect)
+  if [[ "$3" == *opencode.model* ]]; then
+    # llama_start_or_reuse's state probe: "<model> <config-hash>".
+    [[ -n "${INSPECT_HASH:-}" ]] && echo "ornith15 $INSPECT_HASH"
+    exit 0
+  fi
+  [[ "$2" == "-f" && "$3" == "{{.State.Running}}" ]] && echo true
+  exit 0 ;;
 exec) exit 0 ;;
 compose) ;;
 *) exit 0 ;;
@@ -26,6 +33,7 @@ while [[ $# -gt 0 ]]; do
   -f) files+=("$2"); shift 2 ;;
   config) echo "llama-server stubhash"; exit 0 ;;
   up) echo "UP ${files[*]}"; exit 0 ;;
+  down) echo "DOWN ${files[*]}"; exit 0 ;;
   *) shift ;;
   esac
 done
@@ -60,5 +68,18 @@ refute "unknown GPU doesn't start" "UP" "$out"
 
 out="$(run --gpu)"
 check "--gpu needs a value" "--gpu requires an argument" "$out"
+
+# A running server whose config hash matches is reused: no recreate, no down.
+out="$(INSPECT_HASH=stubhash run)"
+check "matching config reuses the running server" "Reusing running llama-server-standalone (ornith15)" "$out"
+refute "reuse does not recreate" "UP" "$out"
+refute "reuse does not remove the server" "DOWN" "$out"
+
+# Declining the restart prompt must leave the healthy server untouched: no
+# recreate and no removal (the EXIT trap fires on a failed start, never here).
+out="$(INSPECT_HASH=oldhash run)"
+check "declined restart aborts" "Aborted." "$out"
+refute "declined restart does not recreate" "UP" "$out"
+refute "declined restart keeps the server" "DOWN" "$out"
 
 ((fails == 0)) && echo "All passed." || { echo "${fails} failed."; exit 1; }

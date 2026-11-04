@@ -122,10 +122,12 @@ branches, PRs, or tags in current history; no CI to satisfy.
 - **Shared llama.cpp code lives in `llama-cpp-lib.sh`** (`llama_preflight`,
   `llama_start_or_reuse`, `llama_wait_healthy`), sourced by `opencode-run.sh`
   and `llama-cpp-run.sh`. Change start-up behavior there, not in either script.
-  `llama_start_or_reuse` returns **10 on reuse** and exits **11 when the
-  restart prompt is declined**; callers must handle both
-  (`|| [[ $? -eq 10 ]]`). Being called after `||` disables `set -e` inside
-  it, so any new failing step there needs an explicit `|| exit 1`.
+  `llama_start_or_reuse` returns **10 on reuse** and **11 when the
+  restart prompt is declined** (return, not exit — exiting there would fire
+  a caller's armed EXIT trap and remove the healthy server); callers must
+  handle both (`|| [[ $? -eq 10 ]]`). Being called after `||` disables
+  `set -e` inside it, so any new failing step there needs an explicit
+  `|| exit 1`.
 - **cpp files must not define an `opencode` service.** The standalone
   project merges `docker-compose.llama-cpp.yaml` and `models/cpp/*.yaml`
   without `docker-compose.yaml`, so any `opencode:` block there becomes an

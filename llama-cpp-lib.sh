@@ -63,8 +63,11 @@ llama_gpu_file() {
 # Usage: llama_start_or_reuse CONTAINER WARNING COMPOSE_ARGS...
 # Reuses CONTAINER only on an exact Compose config-hash match (so edited
 # overlay flags aren't silently ignored); otherwise prints WARNING, asks,
-# and recreates it. Exits 11 on "no". Returns 10 on reuse, so callers under
-# `set -e` must handle it: `llama_start_or_reuse ... || [[ $? -eq 10 ]]`.
+# and recreates it. Returns 10 on reuse and 11 on "no" — the declined
+# restart must not fire a caller's EXIT trap and remove the healthy
+# server, so it returns instead of exiting (llama-cpp-run.sh clears its
+# trap on 11). Callers under `set -e` must handle both:
+# `llama_start_or_reuse ... || [[ $? -eq 10 ]]`.
 llama_start_or_reuse() {
   local container="$1" warning="$2"
   shift 2
@@ -90,7 +93,9 @@ llama_start_or_reuse() {
     y | Y | yes | YES) ;;
     *)
       echo "Aborted."
-      exit 11
+      # Return, not exit: exiting here would run a caller's armed EXIT trap
+      # (llama-cpp-run.sh) and remove the healthy server we were told to keep.
+      return 11
       ;;
     esac
   fi
