@@ -22,6 +22,7 @@ RUN apt-get update && \
   ca-certificates \
   curl \
   gnupg \
+  uuid-runtime \
   locales && \
   locale-gen en_US.UTF-8 && \
   curl -fsSL --retry 5 --retry-all-errors https://deb.nodesource.com/setup_${NODE_MAJOR_VERSION}.x | bash - && \
