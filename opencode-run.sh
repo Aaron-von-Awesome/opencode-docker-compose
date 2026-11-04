@@ -36,6 +36,12 @@ esac
 # starting one. Only applies in local config mode; a stale .local-backend
 # left behind after switching to cloud is ignored.
 CONFIG_MODE="$(cat "${SCRIPT_DIR}/.config-mode" 2>/dev/null || true)"
+# init always writes this file; a missing/corrupt one means the instance's
+# state was disturbed, and launching could pick the wrong config template.
+if [[ "$CONFIG_MODE" != "cloud" && "$CONFIG_MODE" != "local" ]]; then
+  echo "Error: ${SCRIPT_DIR}/.config-mode must contain 'cloud' or 'local' (found: ${CONFIG_MODE:-nothing}). Run opencode-init.sh first; delete the file and re-run to change it." >&2
+  exit 1
+fi
 REMOTE_LLAMA=0
 if [[ "$LOCAL_BACKEND" == "remote" && "$CONFIG_MODE" == "local" ]]; then
   REMOTE_LLAMA=1

@@ -15,6 +15,7 @@ mkdir -p "$I/dot-gitconfig" "$I/dot-ssh" "$T/bin" "$W"
 cp "$REPO"/{opencode-run.sh,llama-cpp-lib.sh,docker-compose.yaml,docker-compose.llama-cpp.yaml,docker-compose.llama-cpp.vulkan.yaml} "$I/"
 cp -r "$REPO/models" "$I/"
 touch "$I/dot-gitconfig/.gitconfig" "$I/dot-ssh/id_opencode"
+echo cloud >"$I/.config-mode"
 
 # Stub: `compose ... config --services` lists the -f files' services;
 # plain `config` echoes the files as "resolved" output with a name: line;
@@ -122,6 +123,17 @@ out="$(cpp_run)"
 check "unknown GPU is rejected" "unknown GPU 'cuda'" "$out"
 refute "unknown GPU doesn't run" "RAN" "$out"
 rm "$I/.config-mode" "$I/.local-backend" "$I/.remote-llama-url" "$I/.llama-gpu"
+
+# A missing or malformed .config-mode must abort the launch instead of
+# running the local template with a cloud-mode env set (or vice versa).
+out="$(run </dev/null)"
+check "missing .config-mode is rejected" "opencode-init.sh first" "$out"
+refute "missing .config-mode doesn't run" "RAN" "$out"
+echo bogus >"$I/.config-mode"
+out="$(run </dev/null)"
+check "malformed .config-mode is rejected" "must contain 'cloud' or 'local'" "$out"
+refute "malformed .config-mode doesn't run" "RAN" "$out"
+rm -f "$I/.config-mode"
 
 [[ "$(stat -c %a "$I/dot-ssh/config" 2>/dev/null)" == 600 ]] && echo "ok   ssh config written, mode 600" || { echo "FAIL ssh config missing or not 600"; fails=$((fails + 1)); }
 
