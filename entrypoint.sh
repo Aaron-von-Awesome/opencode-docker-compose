@@ -6,11 +6,12 @@ PGID=${PGID:-1000}
 
 # Adjust the abc group/user to match requested PUID/PGID
 groupmod -o -g "${PGID}" abc
-usermod -o -u "${PUID}" abc
+# -m moves home-dir ownership along with the new UID; without it, the image's
+# build-time files (/home/abc/.profile etc.) would stay owned by UID 911.
+usermod -m -o -u "${PUID}" abc
 
-# Re-apply ownership of the home dir to the (newly remapped) abc user.
-# usermod without -m leaves home-dir ownership at the original UID, so
-# without this, abc can't write dotfiles into its own home.
+# -m chowns the home contents; this covers the directory itself in case a
+# variant of usermod skips it.
 chown abc:abc /home/abc
 
 echo "───────────────────────────────────────"
