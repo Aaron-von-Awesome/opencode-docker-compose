@@ -63,11 +63,12 @@ llama_gpu_file() {
 # Usage: llama_start_or_reuse CONTAINER WARNING COMPOSE_ARGS...
 # Reuses CONTAINER only on an exact Compose config-hash match (so edited
 # overlay flags aren't silently ignored); otherwise prints WARNING, asks,
-# and recreates it. Returns 10 on reuse and 11 on "no" — the declined
-# restart must not fire a caller's EXIT trap and remove the healthy
-# server, so it returns instead of exiting (llama-cpp-run.sh clears its
-# trap on 11). Callers under `set -e` must handle both:
-# `llama_start_or_reuse ... || [[ $? -eq 10 ]]`.
+# and recreates it. Returns 10 on reuse, 11 on "no" (the declined restart
+# must not fire a caller's EXIT trap and remove the healthy server, so it
+# returns instead of exiting — llama-cpp-run.sh clears its trap on 11), and
+# 12 when compose can't compute the config hash: fail-fast, nothing changed,
+# a running healthy server is left untouched. Callers under `set -e` must
+# handle all three: `llama_start_or_reuse ... || [[ $? -eq 10 ]]`.
 llama_start_or_reuse() {
   local container="$1" warning="$2"
   shift 2
@@ -76,7 +77,10 @@ llama_start_or_reuse() {
   running_model="${running% *}"
   running_hash="${running##* }"
   # Explicit: callers use `|| ...`, which disables set -e inside this function.
-  wanted_hash="$(docker compose "$@" config --hash llama-server | awk '{print $2}')" || exit 1
+  wanted_hash="$(docker compose "$@" config --hash llama-server | awk '{print $2}')" || {
+    echo "Error: docker compose can't compute the llama-server config hash (bad overlay or merge file?); leaving any running server untouched." >&2
+    return 12
+  }
   if [[ -n "$running" && "$running_hash" == "$wanted_hash" ]]; then
     echo "Reusing running ${container} (${MODEL_PROFILE})."
     return 10

@@ -119,15 +119,17 @@ if [[ -z "${LLAMA_API_KEY:-}" ]] && grep -q '^LLAMA_ARG_API_KEY=.' <<<"$running_
 fi
 
 # Armed before the start so a skipped health wait can't leave the server
-# crash-looping under restart: unless-stopped; cleared on the paths where a
-# healthy server must survive (reused, or the user declined the restart).
+# crash-looping under restart: unless-stopped; kept through the health wait
+# (a reused server that dies is removed), so it's cleared only when the
+# server is healthy, or when the user declined the restart and nothing was
+# (re)created.
 trap 'echo "Removing the failed server." >&2; docker compose -p "$PROJECT" -f docker-compose.llama-cpp.yaml -f docker-compose.llama-cpp-standalone.yaml down --remove-orphans' EXIT
 rc=0
 llama_start_or_reuse "$CONTAINER" "$warning" "${COMPOSE_ARGS[@]}" || rc=$?
 case $rc in
 0) ;;
-10) trap - EXIT ;;
-11) trap - EXIT; exit 1 ;;
+10) ;; # trap stays armed through the health wait below
+11 | 12) trap - EXIT; exit 1 ;;
 *) exit "$rc" ;; # start failed; the EXIT trap removes the crash-looped container
 esac
 llama_wait_healthy "$CONTAINER" "$(basename "$0") --logs"

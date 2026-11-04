@@ -20,9 +20,11 @@ inspect)
     [[ -n "${INSPECT_HASH:-}" ]] && echo "ornith15 $INSPECT_HASH"
     exit 0
   fi
-  [[ "$2" == "-f" && "$3" == "{{.State.Running}}" ]] && echo true
+  [[ "$2" == "-f" && "$3" == "{{.State.Running}}" ]] && echo "${STUB_RUNNING:-true}"
   exit 0 ;;
-exec) exit 0 ;;
+exec)
+  [[ "${STUB_EXEC_FAIL:-}" ]] && exit 1
+  exit 0 ;;
 compose) ;;
 *) exit 0 ;;
 esac
@@ -31,7 +33,9 @@ files=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -f) files+=("$2"); shift 2 ;;
-  config) echo "llama-server stubhash"; exit 0 ;;
+  config)
+    [[ "${STUB_HASH_FAIL:-}" ]] && exit 1
+    echo "llama-server stubhash"; exit 0 ;;
   up) echo "UP ${files[*]}"; exit 0 ;;
   down) echo "DOWN ${files[*]}"; exit 0 ;;
   *) shift ;;
@@ -81,5 +85,17 @@ out="$(INSPECT_HASH=oldhash run)"
 check "declined restart aborts" "Aborted." "$out"
 refute "declined restart does not recreate" "UP" "$out"
 refute "declined restart keeps the server" "DOWN" "$out"
+
+# A compose config failure (e.g. an overlay YAML typo) while a healthy server
+# runs must abort WITHOUT removing that server: no restart was ever prompted.
+out="$(INSPECT_HASH=stubhash STUB_HASH_FAIL=1 run)"
+refute "config failure keeps the running server" "DOWN" "$out"
+refute "config failure does not recreate" "UP" "$out"
+
+# A reused server that dies during the health wait must be removed, so
+# restart: unless-stopped cannot crash-loop it while nobody is watching.
+out="$(INSPECT_HASH=stubhash STUB_EXEC_FAIL=1 STUB_RUNNING=false run)"
+check "crashing reused server is detected" "exited. Last log lines" "$out"
+check "crash-looping container is removed" "DOWN" "$out"
 
 ((fails == 0)) && echo "All passed." || { echo "${fails} failed."; exit 1; }
