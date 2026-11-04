@@ -18,4 +18,4 @@ services:
       - "--batch-size"
       - "4096"
       - "--parallel"
-      - "3"
+      - "5"

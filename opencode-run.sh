@@ -424,7 +424,9 @@ cd "${SCRIPT_DIR}"
 # service; every backend adds its one overlay. extra-compose.yaml goes last.
 COMPOSE_ARGS=(-f docker-compose.yaml)
 if [[ -n "$MODEL_PROFILE" && "$LOCAL_BACKEND" == "cpp" ]]; then
-  COMPOSE_ARGS+=(-f docker-compose.llama-cpp.yaml)
+  # GPU from opencode-init.sh; missing file means rocm.
+  gpu_file="$(llama_gpu_file "$(cat "${SCRIPT_DIR}/.llama-gpu" 2>/dev/null || echo rocm)")" || exit 1
+  COMPOSE_ARGS+=(-f docker-compose.llama-cpp.yaml ${gpu_file:+-f "$gpu_file"})
 else
   # The shared llama-server (another cpp session/instance, same project) isn't in this file set.
   export COMPOSE_IGNORE_ORPHANS=true

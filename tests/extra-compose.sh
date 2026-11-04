@@ -12,7 +12,7 @@ fails=0
 
 I="$T/instance" W="$T/project"
 mkdir -p "$I/dot-gitconfig" "$I/dot-ssh" "$T/bin" "$W"
-cp "$REPO"/{opencode-run.sh,llama-cpp-lib.sh,docker-compose.yaml,docker-compose.llama-cpp.yaml} "$I/"
+cp "$REPO"/{opencode-run.sh,llama-cpp-lib.sh,docker-compose.yaml,docker-compose.llama-cpp.yaml,docker-compose.llama-cpp.vulkan.yaml} "$I/"
 cp -r "$REPO/models" "$I/"
 touch "$I/dot-gitconfig/.gitconfig" "$I/dot-ssh/id_opencode"
 
@@ -113,7 +113,15 @@ touch "$T/gguf/$(cd "$REPO" && source llama-cpp-lib.sh && read_overlay_gguf mode
 out="$(umask 002; PATH="$T/bin:$PATH" HOME="$T" OPENCODE_GGUF_DIR="$T/gguf" "$I/opencode-run.sh" --model ornith15 "$W" 2>&1 </dev/null)"
 check "cpp launch runs" "RAN docker-compose.yaml docker-compose.llama-cpp.yaml" "$out"
 refute "cpp launch keeps orphan warnings" "IGNORE_ORPHANS=true" "$out"
-rm "$I/.config-mode" "$I/.local-backend" "$I/.remote-llama-url"
+refute "rocm launch has no vulkan file" "vulkan" "$out"
+cpp_run() { (umask 002; PATH="$T/bin:$PATH" HOME="$T" OPENCODE_GGUF_DIR="$T/gguf" "$I/opencode-run.sh" --model ornith15 "$W" 2>&1 </dev/null); }
+echo vulkan >"$I/.llama-gpu"
+check "vulkan launch merges vulkan file" "RAN docker-compose.yaml docker-compose.llama-cpp.yaml docker-compose.llama-cpp.vulkan.yaml models/cpp/ornith15.yaml" "$(cpp_run)"
+echo cuda >"$I/.llama-gpu"
+out="$(cpp_run)"
+check "unknown GPU is rejected" "unknown GPU 'cuda'" "$out"
+refute "unknown GPU doesn't run" "RAN" "$out"
+rm "$I/.config-mode" "$I/.local-backend" "$I/.remote-llama-url" "$I/.llama-gpu"
 
 [[ "$(stat -c %a "$I/dot-ssh/config" 2>/dev/null)" == 600 ]] && echo "ok   ssh config written, mode 600" || { echo "FAIL ssh config missing or not 600"; fails=$((fails + 1)); }
 

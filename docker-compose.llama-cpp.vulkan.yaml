@@ -1,0 +1,10 @@
+# Merged after docker-compose.llama-cpp.yaml when the GPU is vulkan
+# (.llama-gpu from opencode-init.sh, or llama-cpp-run.sh --gpu vulkan).
+# !override replaces the ROCm device list; Vulkan needs no /dev/kfd.
+services:
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server-vulkan
+    devices: !override
+      - /dev/dri
+    # The image runs as root, which opens /dev/dri without the video/render groups.
+    group_add: !reset []

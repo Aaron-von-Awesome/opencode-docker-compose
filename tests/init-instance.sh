@@ -54,4 +54,11 @@ printf "alias opencode='\${HOME}/OpenCode/opencode-run.sh'\n" >>"$T/.bashrc"
 out="$(run "" c)"
 check "legacy \${HOME} alias counts as this instance" "Alias 'opencode' already present" "$out"
 
+# Answers: instance dir, local, llama.cpp, GPU.
+out="$(run "~/gpu" l c v)"
+check "cpp asks for GPU" "Saved llama.cpp GPU: vulkan" "$out"
+check "GPU choice saved" "vulkan" "$(cat "$T/gpu/.llama-gpu" 2>/dev/null)"
+out="$(run "~/gpu2" l d)"
+[[ ! -e "$T/gpu2/.llama-gpu" ]] && echo "ok   dmr doesn't ask for GPU" || { echo "FAIL dmr wrote .llama-gpu"; fails=$((fails + 1)); }
+
 ((fails == 0)) && echo "All passed." || { echo "${fails} failed."; exit 1; }

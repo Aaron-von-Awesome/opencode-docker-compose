@@ -46,6 +46,20 @@ llama_preflight() {
   export VIDEO_GID RENDER_GID MODEL_PROFILE
 }
 
+# Usage: llama_gpu_file GPU
+# Prints the compose file to merge after docker-compose.llama-cpp.yaml for
+# GPU (nothing for rocm, the base file's default). Fails on unknown values.
+llama_gpu_file() {
+  case "$1" in
+  rocm) ;;
+  vulkan) echo docker-compose.llama-cpp.vulkan.yaml ;;
+  *)
+    echo "Error: unknown GPU '$1' (expected rocm or vulkan)" >&2
+    return 1
+    ;;
+  esac
+}
+
 # Usage: llama_start_or_reuse CONTAINER WARNING COMPOSE_ARGS...
 # Reuses CONTAINER only on an exact Compose config-hash match (so edited
 # overlay flags aren't silently ignored); otherwise prints WARNING, asks,

@@ -5,7 +5,7 @@ OpenCode V2 in a Docker container, with optional local models from llama.cpp (de
 ## Prerequisites
 
 - Docker with the Compose plugin.
-- llama.cpp: an AMD GPU with ROCm (`/dev/kfd`, `/dev/dri`) and GGUF files in `/mnt/storage/llama-cpp/models` (override with `OPENCODE_GGUF_DIR`).
+- llama.cpp: an AMD GPU with ROCm (`/dev/kfd`, `/dev/dri`) or any Vulkan GPU (`/dev/dri`, chosen at init; Compose ≥ 2.24), and GGUF files in `/mnt/storage/llama-cpp/models` (override with `OPENCODE_GGUF_DIR`).
 - DMR: Docker Model Runner enabled.
 - Remote llama.cpp: `curl` on the host.
 
@@ -59,7 +59,7 @@ Overlays live in `models/<backend>/`; `--model <shortname>` picks one.
 | `qwen3827b`  | Qwen3.8 27B        | `Qwen3.8-27B-UD-Q4_K_XL.gguf` |
 | `glm47flash` | GLM 4.7 Flash      | `GLM-4.7-Flash-Q4_K_M.gguf`   |
 
-- One shared `llama-server` container (`ghcr.io/ggml-org/llama.cpp:server-rocm`) serves one model. GGUFs are never downloaded; a missing file aborts the launch.
+- One shared `llama-server` container (`ghcr.io/ggml-org/llama.cpp:server-rocm`, or `server-vulkan`) serves one model. GGUFs are never downloaded; a missing file aborts the launch.
 - **Same model and config running:** reused. **Different model or edited overlay:** you're asked before it restarts (default: no).
 - The launcher waits up to 5 min for `/health`. When the last llama.cpp session exits, the server is stopped and removed.
 - Docker-network only (`http://llama-server:8080`). To reach it from the host, add `ports:` under `llama-server` in `~/OpenCode/docker-compose.llama-cpp.yaml` or a project's `extra-compose.yaml`.
@@ -81,7 +81,7 @@ One standalone llama-server, on this machine or a LAN box, shared by any number 
 
 ```bash
 cd ~/OpenCode            # or your clone of this repo
-LLAMA_API_KEY=change-me ./llama-cpp-run.sh --model ornith15   # start in background
+LLAMA_API_KEY=change-me ./llama-cpp-run.sh --model ornith15   # start in background (add --gpu vulkan for Vulkan)
 ./llama-cpp-run.sh --logs                                     # follow logs
 ./llama-cpp-run.sh --stop                                     # stop and remove
 ```

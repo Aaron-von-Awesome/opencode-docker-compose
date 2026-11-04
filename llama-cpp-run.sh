@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Usage: ./llama-cpp-run.sh --model SHORTNAME | --stop | --logs | --help
+# Usage: ./llama-cpp-run.sh --model SHORTNAME [--gpu rocm|vulkan] | --stop | --logs | --help
 # Runs llama-server on its own, in the background, for OpenCode instances on
 # this machine or the LAN to share (opencode-init.sh backend "remote").
 # Reuses docker-compose.llama-cpp.yaml and models/cpp/<shortname>.yaml, plus
-# docker-compose.llama-cpp-standalone.yaml for the published port.
+# docker-compose.llama-cpp-standalone.yaml for the published port
+# (+ docker-compose.llama-cpp.vulkan.yaml with --gpu vulkan).
 
 set -euo pipefail
 
@@ -19,11 +20,12 @@ cd "$SCRIPT_DIR"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") --model SHORTNAME | --stop | --logs | --help
+Usage: $(basename "$0") --model SHORTNAME [--gpu rocm|vulkan] | --stop | --logs | --help
 
   --model, -m SHORTNAME   Start (or restart) the standalone llama-server in
                           the background. Available models (models/cpp/):
 $(list_model_overlays cpp "                          ")
+  --gpu rocm|vulkan       llama.cpp image to run (default: rocm).
   --stop                  Stop and remove it.
   --logs                  Follow its logs (Ctrl-C to stop following).
   --help, -h              Show this help and exit.
@@ -42,6 +44,7 @@ EOF
 
 MODEL_PROFILE=""
 ACTION=""
+LLAMA_GPU="rocm"
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --model | -m)
@@ -51,6 +54,14 @@ while [[ $# -gt 0 ]]; do
     }
     MODEL_PROFILE="$2"
     ACTION="start"
+    shift 2
+    ;;
+  --gpu)
+    [[ $# -ge 2 ]] || {
+      echo "Error: --gpu requires an argument" >&2
+      exit 1
+    }
+    LLAMA_GPU="$2"
     shift 2
     ;;
   --stop) ACTION="stop"; shift ;;
@@ -95,7 +106,8 @@ if [[ -n "${LLAMA_API_KEY:-}" ]]; then
   export LLAMA_ARG_API_KEY="$LLAMA_API_KEY"
 fi
 
-COMPOSE_ARGS=(-p "$PROJECT" -f docker-compose.llama-cpp.yaml -f docker-compose.llama-cpp-standalone.yaml -f "models/cpp/${MODEL_PROFILE}.yaml")
+gpu_file="$(llama_gpu_file "$LLAMA_GPU")" || exit 1
+COMPOSE_ARGS=(-p "$PROJECT" -f docker-compose.llama-cpp.yaml ${gpu_file:+-f "$gpu_file"} -f docker-compose.llama-cpp-standalone.yaml -f "models/cpp/${MODEL_PROFILE}.yaml")
 
 warning="Connected OpenCode sessions will lose their model until it's back up."
 # The key lives only in the shell that started the server; a restart from a

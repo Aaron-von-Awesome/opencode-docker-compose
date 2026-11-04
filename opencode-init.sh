@@ -6,12 +6,13 @@
 #     as opencode.jsonc.template (saved to .config-mode)
 #   - local only: asks llama.cpp (cpp), Docker Model Runner (dmr), or a
 #     remote llama.cpp server (remote) (saved to .local-backend); remote also
-#     asks for the server URL and optional API key (.remote-llama-url/-key)
+#     asks for the server URL and optional API key (.remote-llama-url/-key);
+#     llama.cpp also asks ROCm or Vulkan (.llama-gpu)
 #   - adds an alias named after the lowercased directory (~/OpenCode ->
 #     `opencode`, ~/OpenCode-llama -> `opencode-llama`) to ~/.bashrc if missing
 # Each directory is a separate instance with its own config and state.
 # Saved choices skip their prompts on re-run; delete the file to re-prompt.
-# Not copied: .git*, README.md, AGENTS.md, LICENSE, tests/, this script, and the two
+# Not copied: .git*, .claude, README.md, AGENTS.md, LICENSE, tests/, this script, and the two
 # opencode.jsonc.*.template files.
 
 set -euo pipefail
@@ -65,7 +66,7 @@ fi
 
 is_excluded() {
   case "$1" in
-    .git*|README.md|AGENTS.md|LICENSE|tests|"$SCRIPT_NAME"|opencode.jsonc.cloud.template|opencode.jsonc.local.template) return 0 ;;
+    .git*|.claude|README.md|AGENTS.md|LICENSE|tests|"$SCRIPT_NAME"|opencode.jsonc.cloud.template|opencode.jsonc.local.template) return 0 ;;
   esac
   return 1
 }
@@ -186,6 +187,27 @@ if [ "$MODE" = "local" ]; then
     done
     printf '%s\n' "$BACKEND" > "$BACKEND_FILE"
     echo "Saved local backend: ${BACKEND} -> ${BACKEND_FILE}"
+  fi
+fi
+
+# llama.cpp backend only: which llama.cpp image opencode-run.sh starts
+# (missing file means rocm). Delete .llama-gpu to re-prompt.
+GPU_FILE="${DEST}/.llama-gpu"
+if [ "$MODE" = "local" ] && [ "$(cat "$BACKEND_FILE")" = "cpp" ]; then
+  if [ -f "$GPU_FILE" ]; then
+    echo "Saved llama.cpp GPU: $(cat "$GPU_FILE") (from ${GPU_FILE})"
+    echo "Delete this file and re-run to change it."
+  else
+    while true; do
+      read -r -p "llama.cpp GPU — [r] ROCm (default) or [v] Vulkan: " ans
+      case "$ans" in
+        ""|r|R) GPU="rocm"; break ;;
+        v|V) GPU="vulkan"; break ;;
+        *) echo "Please enter 'r' for ROCm or 'v' for Vulkan." ;;
+      esac
+    done
+    printf '%s\n' "$GPU" > "$GPU_FILE"
+    echo "Saved llama.cpp GPU: ${GPU} -> ${GPU_FILE}"
   fi
 fi
 

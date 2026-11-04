@@ -35,7 +35,7 @@ services but not add new ones.
 - `./opencode-run.sh --model <shortname> [/path/to/project]` — local model mode.
 - `./opencode-run.sh [/path/to/project]` — cloud/third-party provider mode.
 - `./opencode-run.sh --help` — lists available model overlays.
-- `./llama-cpp-run.sh --model <shortname> | --stop | --logs` — standalone
+- `./llama-cpp-run.sh --model <shortname> [--gpu rocm|vulkan] | --stop | --logs` — standalone
   llama-server for the `remote` backend (`LLAMA_PORT`, `LLAMA_BIND`, `LLAMA_API_KEY`).
 - `./tests/init-instance.sh` — runs init in a throwaway `HOME` and checks the
   instance-directory and alias rules. Run it after editing `opencode-init.sh`.
@@ -44,6 +44,8 @@ services but not add new ones.
   cloud mode rejects `--model`. Run it after editing `opencode-run.sh`.
 - `./tests/overlays.sh` — checks the overlay parsers (`read_overlay_gguf`,
   `read_overlay_model_id`) against the real overlays; no Docker needed.
+- `./tests/llama-cpp-run.sh` — runs `llama-cpp-run.sh` with a stub `docker`
+  and checks `--gpu`. Run it after editing `llama-cpp-run.sh`.
 - Otherwise nothing to build or lint; edit scripts and re-launch to verify.
 - If the workspace contains `extra-compose.yaml`, it is merged into the compose
   invocation for per-project customization. It may modify existing services but
@@ -161,8 +163,16 @@ branches, PRs, or tags in current history; no CI to satisfy.
   removes llama-server when none remain. Cloud, DMR, and remote sessions never
   touch it; they export `COMPOSE_IGNORE_ORPHANS=true` because it shares the
   `opencode-va` project. Never add `--remove-orphans` there — it would kill it.
-- **ROCm only (cpp).** The image is `server-rocm`; video/render GIDs come from
-  `getent` on the host (fallback 44/992).
+- **GPU: ROCm or Vulkan (cpp and standalone).** `docker-compose.llama-cpp.yaml`
+  is ROCm (`server-rocm`, `/dev/kfd` + `/dev/dri`).
+  `docker-compose.llama-cpp.vulkan.yaml` swaps in `server-vulkan` and
+  `devices: !override [/dev/dri]` and drops `group_add` with `!reset` (needs Compose ≥ 2.24); it is merged right
+  after the base llama-cpp file via `llama_gpu_file`. Init asks (cpp backend
+  only) and saves `rocm`/`vulkan` to `~/OpenCode/.llama-gpu` (missing →
+  `rocm`; delete and re-run init to change). `llama-cpp-run.sh` takes
+  `--gpu` instead (default `rocm`), since the server host may never run init.
+  Switching GPUs changes the config hash, so the restart prompt fires.
+  ROCm: video/render GIDs come from `getent` on the host (fallback 44/992).
 - **OpenCode runs `--standalone`** (`command:` in `docker-compose.yaml`).
   Without it, every container registers its background service in the shared
   `~/.local/state/opencode/service.json`. Each container's `127.0.0.1` is its
@@ -170,7 +180,7 @@ branches, PRs, or tags in current history; no CI to satisfy.
   own, overwrites the file, and the first shuts down ("managed service
   registration replaced"), in a loop.
 - **Multiple instances.** Each instance directory holds its own `dot-*`,
-  `container-tmp`, `development`, `.config-mode`, `.local-backend` and remote
+  `container-tmp`, `development`, `.config-mode`, `.local-backend`, `.llama-gpu` and remote
   files. `opencode-run.sh` uses `SCRIPT_DIR` for all of them, and
   `docker-compose.yaml` mounts them as `./dot-*` (relative to the instance
   dir); never hardcode `${HOME}/OpenCode`. Only one instance should use the `cpp` backend
@@ -224,6 +234,7 @@ Dockerfile              # ubuntu:26.04 + node + uv + opencode binary at /usr/loc
 entrypoint.sh           # in-container UID/GID remap + Xvfb (clipboard) + gosu drop-privileges
 docker-compose.llama-cpp.yaml # llama-server service; merged only with --model on the cpp backend
 docker-compose.llama-cpp-standalone.yaml # overrides for llama-cpp-run.sh (port, restart, API key)
+docker-compose.llama-cpp.vulkan.yaml # Vulkan image + devices; merged when the GPU is vulkan
 llama-cpp-run.sh        # standalone llama-server for the remote backend
 llama-cpp-lib.sh        # shared llama.cpp steps (GGUF check, start-or-reuse, health wait), sourced by both
 models/cpp/<shortname>.yaml   # llama.cpp overlay (GGUF + flags)
