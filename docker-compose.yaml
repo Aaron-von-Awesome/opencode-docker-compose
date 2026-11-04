@@ -38,7 +38,8 @@ services:
     environment:
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
-      TZ: "America/New_York"
+      # Host TZ if the launching shell exports one, else the documented default.
+      TZ: "${TZ:-America/New_York}"
       OC_PROJECT_NAME: "${OC_PROJECT_NAME}"
       TERM: "xterm-256color"
       OPENCODE_DISABLE_FREE_MODELS: "1"

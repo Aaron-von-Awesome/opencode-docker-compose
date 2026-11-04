@@ -293,8 +293,7 @@ OC_PROJECT_NAME="$(basename "${WORKSPACE_DIR}")"
 # entrypoint.sh remaps abc to these at runtime — no rebuild needed.
 PUID="$(id -u)"
 PGID="$(id -g)"
-export PUID=${PUID}
-export PGID=${PGID}
+export PUID PGID
 
 # Pre-create mount sources so Docker doesn't create them root-owned.
 mkdir -p "${SCRIPT_DIR}"/{container-tmp,development,dot-cache,dot-config/opencode,dot-gitconfig,dot-local,dot-npm}
