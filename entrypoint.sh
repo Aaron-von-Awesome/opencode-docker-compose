@@ -6,13 +6,13 @@ PGID=${PGID:-1000}
 
 # Adjust the abc group/user to match requested PUID/PGID
 groupmod -o -g "${PGID}" abc
-# -m moves home-dir ownership along with the new UID; without it, the image's
-# build-time files (/home/abc/.profile etc.) would stay owned by UID 911.
-usermod -m -o -u "${PUID}" abc
+usermod -o -u "${PUID}" abc
 
-# -m chowns the home contents; this covers the directory itself in case a
-# variant of usermod skips it.
-chown abc:abc /home/abc
+# Re-apply ownership: usermod leaves build-time files at the old UID, and the
+# bind-mounted dot-dirs already belong to PUID, so only /etc/skel's trio and
+# the home dir itself need this. Never chown -R here: it would walk into the
+# workspace and other bind mounts.
+chown abc:abc /home/abc /home/abc/.bashrc /home/abc/.profile /home/abc/.bash_logout 2>/dev/null || true
 
 echo "───────────────────────────────────────"
 echo " OpenCode Container"
