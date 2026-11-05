@@ -47,6 +47,12 @@ RUN apt-get update && \
   xvfb && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install MarkItDown (subset of document converters). uv writes the `markitdown`
+# script to /usr/local/bin (UV_TOOL_BIN_DIR) on PATH and the deps to
+# /opt/uv-tools (UV_TOOL_DIR); python3 above gives uv a system interpreter
+# since UV_PYTHON_DOWNLOADS=never.
+RUN uv tool install "markitdown[docx,xlsx,pptx,xls,pdf]"
+
 # Create default user "abc" (linuxserver convention) at placeholder UID 911.
 # `-U` creates a same-named group automatically (GID auto-assigned; both
 # UID and GID are remapped to PUID/PGID by entrypoint.sh at runtime, so
