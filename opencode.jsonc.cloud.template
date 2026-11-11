@@ -19,6 +19,11 @@
     "explore": { "model": "opencode-go/longcat-2.0" },
     "build": { "model": "opencode-go/longcat-2.0" },
     "plan": { "model": "opencode-go/longcat-2.0" },
+    "reviewer": { "model": "opencode-go/longcat-2.0" },
+    "implementer": { "model": "opencode-go/longcat-2.0" },
+    "spec-compliance reviewer": { "model": "opencode-go/longcat-2.0" },
+    "code-quality reviewer": { "model": "opencode-go/longcat-2.0" },
+    "code reviewer": { "model": "opencode-go/longcat-2.0" },
   },
 
   // Default Agent
