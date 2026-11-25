@@ -3,27 +3,27 @@
 
   // Default model for the session. The visible agents (build / plan) inherit
   // this, and subagents (general / explore) inherit the parent session's model.
-  "model": "opencode-go/longcat-2.0",
+  "model": "opencode-go/mimo-v2.6-pro",
 
   // Hidden title/summary/compaction agents do NOT inherit the top-level model,
   // so they need explicit overrides. This is what fixes the "Small Model" issue.
   "agents": {
-    "title": { "model": "opencode-go/longcat-2.0" }, // "Small Model" Issue -> https://github.com/anomalyco/opencode/issues/52367#issuecomment-5971768783
-    "summary": { "model": "opencode-go/longcat-2.0" },
-    "compaction": { "model": "opencode-go/longcat-2.0" },
+    "title": { "model": "opencode-go/mimo-v2.6-pro" }, // "Small Model" Issue -> https://github.com/anomalyco/opencode/issues/52367#issuecomment-5971768783
+    "summary": { "model": "opencode-go/mimo-v2.6-pro" },
+    "compaction": { "model": "opencode-go/mimo-v2.6-pro" },
 
     // build / plan / general / explore already inherit the top-level "model"
     // above, so these entries are optional. Keep them only if you want them
     // to be explicit.
-    "general": { "model": "opencode-go/longcat-2.0" },
-    "explore": { "model": "opencode-go/longcat-2.0" },
-    "build": { "model": "opencode-go/longcat-2.0" },
-    "plan": { "model": "opencode-go/longcat-2.0" },
-    "reviewer": { "model": "opencode-go/longcat-2.0" },
-    "implementer": { "model": "opencode-go/longcat-2.0" },
-    "spec-compliance reviewer": { "model": "opencode-go/longcat-2.0" },
-    "code-quality reviewer": { "model": "opencode-go/longcat-2.0" },
-    "code reviewer": { "model": "opencode-go/longcat-2.0" },
+    "general": { "model": "opencode-go/mimo-v2.6-pro" },
+    "explore": { "model": "opencode-go/mimo-v2.6-pro" },
+    "build": { "model": "opencode-go/mimo-v2.6-pro" },
+    "plan": { "model": "opencode-go/mimo-v2.6-pro" },
+    "reviewer": { "model": "opencode-go/mimo-v2.6-pro" },
+    "implementer": { "model": "opencode-go/mimo-v2.6-pro" },
+    "spec-compliance reviewer": { "model": "opencode-go/mimo-v2.6-pro" },
+    "code-quality reviewer": { "model": "opencode-go/mimo-v2.6-pro" },
+    "code reviewer": { "model": "opencode-go/mimo-v2.6-pro" },
   },
 
   // Default Agent
