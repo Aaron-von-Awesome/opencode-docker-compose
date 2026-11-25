@@ -37,6 +37,9 @@ Environment:
                           OpenCode containers via host.docker.internal.
   LLAMA_API_KEY           Optional API key clients must send. Unset or empty
                           means no key.
+  LLAMA_UI                Set (e.g. 1) to serve the built-in Llama Chat UI on
+                          the same port. Unset or empty disables it (default).
+                          Value is a llama.cpp boolean (1/0, on/off, true/false).
   OPENCODE_GGUF_DIR       Host folder holding the GGUF files
                           (default: /mnt/storage/llama-cpp/models).
 EOF

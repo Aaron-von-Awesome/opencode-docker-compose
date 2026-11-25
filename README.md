@@ -88,6 +88,7 @@ LLAMA_API_KEY=change-me ./llama-cpp-run.sh --model ornith15   # start in backgro
 
 - Publishes `${LLAMA_BIND:-0.0.0.0}:${LLAMA_PORT:-8080}` with `restart: unless-stopped`. Set `LLAMA_BIND` to one interface's IP (e.g. a Tailscale IP) to limit exposure. `127.0.0.1` also blocks same-machine OpenCode containers, since `host.docker.internal` is the Docker bridge IP, not loopback.
 - **Without `LLAMA_API_KEY`, anyone who can reach the port can use it.** Generate one with `openssl rand -hex 32` and give clients the same value. It isn't saved on the server, so pass it again on every restart. If the running server has a key and your shell doesn't, the restart prompt warns you.
+- The built-in Llama Chat UI is off by default. Start the server with `LLAMA_UI=1` to serve it from the same port.
 - Same model and config running → just prints the URLs. Otherwise you're asked before a restart. A server that never gets healthy is removed, so it can't crash-loop.
 
 **Clients:** run init, pick local → `[r]`, and enter the URL (`http://host.docker.internal:8080/v1` for the same machine, `http://<server-ip>:8080/v1` for LAN) and key. They're saved to `~/OpenCode/.remote-llama-url` and `~/OpenCode/.remote-llama-key` (mode 600); delete the URL file and re-run init to change both. Then launch with no `--model`. The launcher checks the server is up, the key is accepted, and which model is loaded, then connects. It never starts or stops the server.
@@ -184,7 +185,7 @@ Init leaves `opencode.jsonc.template` and `cli.json.template` in `~/OpenCode/`; 
 | `Dockerfile`, `entrypoint.sh` | Image; UID/GID remap, Xvfb for clipboard, `gosu` |
 | `tests/init-instance.sh` | Checks init's directory and alias rules (not copied to instances) |
 | `tests/extra-compose.sh` | Checks the `extra-compose.yaml` approval flow with a stub `docker` (not copied to instances) |
-| `tests/llama-cpp-run.sh` | Checks the standalone launcher's `--gpu` flag with a stub `docker` (not copied to instances) |
+| `tests/llama-cpp-run.sh` | Checks the standalone launcher's `--gpu` flag, the API-key wiring and the UI default with a stub `docker` (not copied to instances) |
 | `tests/overlays.sh` | Checks the overlay parsers (not copied to instances) |
 
 ## Tests

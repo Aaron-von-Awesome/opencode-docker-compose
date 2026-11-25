@@ -36,7 +36,7 @@ services but not add new ones.
 - `./opencode-run.sh [/path/to/project]` — cloud/third-party provider mode.
 - `./opencode-run.sh --help` — lists available model overlays.
 - `./llama-cpp-run.sh --model <shortname> [--gpu rocm|vulkan] | --stop | --logs` — standalone
-  llama-server for the `remote` backend (`LLAMA_PORT`, `LLAMA_BIND`, `LLAMA_API_KEY`).
+  llama-server for the `remote` backend (`LLAMA_PORT`, `LLAMA_BIND`, `LLAMA_API_KEY`, `LLAMA_UI`).
 - `./tests/init-instance.sh` — runs init in a throwaway `HOME` and checks the
   instance-directory and alias rules. Run it after editing `opencode-init.sh`.
 - `./tests/extra-compose.sh` — runs `opencode-run.sh` with a stub `docker` and
@@ -45,7 +45,7 @@ services but not add new ones.
 - `./tests/overlays.sh` — checks the overlay parsers (`read_overlay_gguf`,
   `read_overlay_model_id`) against the real overlays; no Docker needed.
 - `./tests/llama-cpp-run.sh` — runs `llama-cpp-run.sh` with a stub `docker`
-  and checks `--gpu`. Run it after editing `llama-cpp-run.sh`.
+  and checks `--gpu`, the API-key wiring and the UI default. Run it after editing `llama-cpp-run.sh` or the llama-cpp compose files.
 - Otherwise nothing to build or lint; edit scripts and re-launch to verify.
 - If the workspace contains `extra-compose.yaml`, it is merged into the compose
   invocation for per-project customization. It may modify existing services but
@@ -104,7 +104,12 @@ branches, PRs, or tags in current history; no CI to satisfy.
   passes it only when the launching shell has one set — llama.cpp reads
   `--api-key` from `LLAMA_API_KEY` and silently ignores `LLAMA_ARG_API_KEY`,
   so don't rename it),
-  and the `opencode-net` network. Same config-hash rule as the per-session
+  and the `opencode-net` network.
+  The built-in Llama Chat UI is off unless `LLAMA_UI` is set at launch
+  (`LLAMA_ARG_UI: ${LLAMA_UI:-false}` in `docker-compose.llama-cpp.yaml`,
+  shared with the per-session cpp server); toggling it or the key changes
+  the config hash, so the restart prompt fires.
+  Same config-hash rule as the per-session
   server: match → skip the wait and print URLs; otherwise prompt and
   `up -d --force-recreate`. The down paths (`--stop`, and the EXIT trap after
   a failed start or health wait) pass `-f docker-compose.llama-cpp.yaml -f

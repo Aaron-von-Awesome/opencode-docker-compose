@@ -22,5 +22,8 @@ services:
       LLAMA_ARG_N_GPU_LAYERS: "999"
       LLAMA_ARG_FLASH_ATTN: "on"
       LLAMA_ARG_ALIAS: "${MODEL_PROFILE:-}"
+      # Built-in Llama Chat UI off unless LLAMA_UI is set (llama.cpp boolean
+      # values: true/1/on/enabled or false/0/off/disabled).
+      LLAMA_ARG_UI: "${LLAMA_UI:-false}"
     networks:
       opencode-net:

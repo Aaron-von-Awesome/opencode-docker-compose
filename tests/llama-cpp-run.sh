@@ -127,6 +127,9 @@ check_file "compose passes LLAMA_API_KEY through" "LLAMA_API_KEY:" "$REPO/docker
 refute_file "standalone compose no longer uses LLAMA_ARG_API_KEY" "LLAMA_ARG_API_KEY" "$REPO/docker-compose.llama-cpp-standalone.yaml"
 refute_file "llama-cpp-run.sh no longer uses LLAMA_ARG_API_KEY" "LLAMA_ARG_API_KEY" "$REPO/llama-cpp-run.sh"
 
+# The built-in UI must stay off unless LLAMA_UI is set at launch.
+check_file "UI is off unless LLAMA_UI is set" 'LLAMA_ARG_UI: "${LLAMA_UI:-false}"' "$REPO/docker-compose.llama-cpp.yaml"
+
 # A keyed running server must warn a shell without the key before any restart.
 out="$(INSPECT_HASH=oldhash STUB_CONTAINER_ENV='LLAMA_API_KEY=sekret' run)"
 check "keyed server warns a keyless shell" "WARNING: the running server requires an API key" "$out"
