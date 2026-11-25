@@ -100,8 +100,10 @@ branches, PRs, or tags in current history; no CI to satisfy.
   + `models/cpp/<shortname>.yaml`. The standalone file adds `ports:`
   (`${LLAMA_BIND:-0.0.0.0}:${LLAMA_PORT:-8080}`; `127.0.0.1` is unreachable
   from OpenCode containers, whose `host.docker.internal` is the bridge IP),
-  `restart: unless-stopped`, a value-less `LLAMA_ARG_API_KEY` (exported only
-  when `LLAMA_API_KEY` is non-empty, so an empty key never reaches llama.cpp),
+  `restart: unless-stopped`, a value-less `LLAMA_API_KEY` passthrough (compose
+  passes it only when the launching shell has one set — llama.cpp reads
+  `--api-key` from `LLAMA_API_KEY` and silently ignores `LLAMA_ARG_API_KEY`,
+  so don't rename it),
   and the `opencode-net` network. Same config-hash rule as the per-session
   server: match → skip the wait and print URLs; otherwise prompt and
   `up -d --force-recreate`. The down paths (`--stop`, and the EXIT trap after
@@ -116,8 +118,8 @@ branches, PRs, or tags in current history; no CI to satisfy.
   prompt (11), so a healthy server the user chose to keep is never removed
   (otherwise `restart: unless-stopped` crash-loops the failed container); the
   trap is cleared once healthy.
-  If the running container has `LLAMA_ARG_API_KEY` and `LLAMA_API_KEY` is
-  empty, the restart prompt warns that the port would open — the key lives
+  If the running container has `LLAMA_API_KEY` set and this shell doesn't,
+  the restart prompt warns that the port would open — the key lives
   only in the starting shell's env.
 - **Shared llama.cpp code lives in `llama-cpp-lib.sh`** (`llama_preflight`,
   `llama_start_or_reuse`, `llama_wait_healthy`), sourced by `opencode-run.sh`

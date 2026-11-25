@@ -102,9 +102,6 @@ if [[ ! -f "$MODEL_OVERLAY" ]]; then
 fi
 
 llama_preflight "$MODEL_OVERLAY"
-if [[ -n "${LLAMA_API_KEY:-}" ]]; then
-  export LLAMA_ARG_API_KEY="$LLAMA_API_KEY"
-fi
 
 gpu_file="$(llama_gpu_file "$LLAMA_GPU")" || exit 1
 COMPOSE_ARGS=(-p "$PROJECT" -f docker-compose.llama-cpp.yaml ${gpu_file:+-f "$gpu_file"} -f docker-compose.llama-cpp-standalone.yaml -f "models/cpp/${MODEL_PROFILE}.yaml")
@@ -113,7 +110,7 @@ warning="Connected OpenCode sessions will lose their model until it's back up."
 # The key lives only in the shell that started the server; a restart from a
 # shell without it would silently open the port.
 running_env="$(docker inspect -f '{{if .State.Running}}{{range .Config.Env}}{{println .}}{{end}}{{end}}' "$CONTAINER" 2>/dev/null || true)"
-if [[ -z "${LLAMA_API_KEY:-}" ]] && grep -q '^LLAMA_ARG_API_KEY=.' <<<"$running_env"; then
+if [[ -z "${LLAMA_API_KEY:-}" ]] && grep -q '^LLAMA_API_KEY=.' <<<"$running_env"; then
   warning+=$'\n'"WARNING: the running server requires an API key, but LLAMA_API_KEY is not set here."
   warning+=$'\n'"Restarting would leave port ${LLAMA_PORT:-8080} open to anyone who can reach it. Answer N and re-run with LLAMA_API_KEY=... to keep the key."
 fi

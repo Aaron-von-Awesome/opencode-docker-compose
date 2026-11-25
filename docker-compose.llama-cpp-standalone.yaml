@@ -7,9 +7,10 @@ services:
     ports:
       - "${LLAMA_BIND:-0.0.0.0}:${LLAMA_PORT:-8080}:8080"
     environment:
-      # No value: passed through only if set (llama-cpp-run.sh exports it when
-      # LLAMA_API_KEY is non-empty), so an empty key never reaches llama.cpp.
-      LLAMA_ARG_API_KEY:
+      # No value: passed through only when the launching shell has one set.
+      # Name is the contract with llama.cpp (--api-key reads LLAMA_API_KEY
+      # and ignores any LLAMA_ARG_* variant), so don't rename this.
+      LLAMA_API_KEY:
 
 networks:
   opencode-net:

@@ -20,6 +20,11 @@ inspect)
     [[ -n "${INSPECT_HASH:-}" ]] && echo "ornith15 $INSPECT_HASH"
     exit 0
   fi
+  if [[ "$3" == *Config.Env* ]]; then
+    # llama-cpp-run.sh's running-env probe.
+    [[ -n "${STUB_CONTAINER_ENV:-}" ]] && printf '%s\n' "$STUB_CONTAINER_ENV"
+    exit 0
+  fi
   [[ "$2" == "-f" && "$3" == "{{.State.Running}}" ]] && echo "${STUB_RUNNING:-true}"
   exit 0 ;;
 exec)
@@ -57,6 +62,24 @@ check() {
 }
 refute() {
   if grep -qF -- "$2" <<<"$3"; then echo "FAIL $1: unexpected '$2'"; fails=$((fails + 1)); else echo "ok   $1"; fi
+}
+check_file() {
+  local name="$1" want="$2" file="$3"
+  if grep -qF -- "$want" "$file"; then
+    echo "ok   $name"
+  else
+    echo "FAIL $name: expected '$want' in $file"
+    fails=$((fails + 1))
+  fi
+}
+refute_file() {
+  local name="$1" bad="$2" file="$3"
+  if grep -qF -- "$bad" "$file"; then
+    echo "FAIL $name: unexpected '$bad' in $file"
+    fails=$((fails + 1))
+  else
+    echo "ok   $name"
+  fi
 }
 
 out="$(run)"
@@ -97,5 +120,15 @@ refute "config failure does not recreate" "UP" "$out"
 out="$(INSPECT_HASH=stubhash STUB_EXEC_FAIL=1 STUB_RUNNING=false run)"
 check "crashing reused server is detected" "exited. Last log lines" "$out"
 check "crash-looping container is removed" "DOWN" "$out"
+
+# The API key must reach llama-server under its only known name: llama.cpp
+# reads --api-key from LLAMA_API_KEY and silently ignores LLAMA_ARG_API_KEY.
+check_file "compose passes LLAMA_API_KEY through" "LLAMA_API_KEY:" "$REPO/docker-compose.llama-cpp-standalone.yaml"
+refute_file "standalone compose no longer uses LLAMA_ARG_API_KEY" "LLAMA_ARG_API_KEY" "$REPO/docker-compose.llama-cpp-standalone.yaml"
+refute_file "llama-cpp-run.sh no longer uses LLAMA_ARG_API_KEY" "LLAMA_ARG_API_KEY" "$REPO/llama-cpp-run.sh"
+
+# A keyed running server must warn a shell without the key before any restart.
+out="$(INSPECT_HASH=oldhash STUB_CONTAINER_ENV='LLAMA_API_KEY=sekret' run)"
+check "keyed server warns a keyless shell" "WARNING: the running server requires an API key" "$out"
 
 ((fails == 0)) && echo "All passed." || { echo "${fails} failed."; exit 1; }
