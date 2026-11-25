@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Checks llama-cpp-run.sh's --gpu flag with a stub `docker`.
+# Checks llama-cpp-run.sh's --gpu flag, the API-key wiring and the UI default
+# with a stub `docker`.
 # Run: ./tests/llama-cpp-run.sh
 set -uo pipefail
 
@@ -123,7 +124,7 @@ check "crash-looping container is removed" "DOWN" "$out"
 
 # The API key must reach llama-server under its only known name: llama.cpp
 # reads --api-key from LLAMA_API_KEY and silently ignores LLAMA_ARG_API_KEY.
-check_file "compose passes LLAMA_API_KEY through" "LLAMA_API_KEY:" "$REPO/docker-compose.llama-cpp-standalone.yaml"
+check_file "compose passes LLAMA_API_KEY through" "      LLAMA_API_KEY:" "$REPO/docker-compose.llama-cpp-standalone.yaml"
 refute_file "standalone compose no longer uses LLAMA_ARG_API_KEY" "LLAMA_ARG_API_KEY" "$REPO/docker-compose.llama-cpp-standalone.yaml"
 refute_file "llama-cpp-run.sh no longer uses LLAMA_ARG_API_KEY" "LLAMA_ARG_API_KEY" "$REPO/llama-cpp-run.sh"
 
@@ -133,5 +134,11 @@ check_file "UI is off unless LLAMA_UI is set" 'LLAMA_ARG_UI: "${LLAMA_UI:-false}
 # A keyed running server must warn a shell without the key before any restart.
 out="$(INSPECT_HASH=oldhash STUB_CONTAINER_ENV='LLAMA_API_KEY=sekret' run)"
 check "keyed server warns a keyless shell" "WARNING: the running server requires an API key" "$out"
+
+out="$(INSPECT_HASH=oldhash run)"
+refute "keyless container gets no key warning" "WARNING" "$out"
+
+out="$(INSPECT_HASH=oldhash LLAMA_API_KEY=sekret STUB_CONTAINER_ENV='LLAMA_API_KEY=sekret' run)"
+refute "keyed shell gets no key warning" "WARNING" "$out"
 
 ((fails == 0)) && echo "All passed." || { echo "${fails} failed."; exit 1; }
